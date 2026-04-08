@@ -1,0 +1,780 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Large Language Object — Reinterpretation Interface v2</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,300;0,400;0,500;1,300&family=Syne:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #0e0e10;
+    --surface: #18181c;
+    --surface2: #222228;
+    --border: rgba(255,255,255,0.08);
+    --border2: rgba(255,255,255,0.15);
+    --text: #f0ede8;
+    --muted: #7a7880;
+    --accent-a: #c8f07a;
+    --accent-b: #7ab8f0;
+    --knob-track: #2a2a32;
+    --knob-fill-a: #c8f07a;
+    --knob-fill-b: #7ab8f0;
+    --font-display: 'Syne', sans-serif;
+    --font-mono: 'DM Mono', monospace;
+    --r: 10px;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-mono);
+    font-size: 13px;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  header {
+    border-bottom: 1px solid var(--border);
+    padding: 18px 28px;
+    display: flex;
+    align-items: baseline;
+    gap: 16px;
+    flex-shrink: 0;
+  }
+
+  header h1 {
+    font-family: var(--font-display);
+    font-size: 20px;
+    font-weight: 800;
+    letter-spacing: -0.5px;
+    color: var(--text);
+  }
+
+  header span {
+    font-size: 11px;
+    color: var(--muted);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .turn-counter {
+    margin-left: auto;
+    font-size: 10px;
+    color: var(--muted);
+    letter-spacing: 0.08em;
+  }
+
+  .turn-counter strong {
+    color: var(--text);
+    font-weight: 500;
+  }
+
+  .reset-btn {
+    background: none;
+    border: 1px solid var(--border2);
+    border-radius: 6px;
+    color: var(--muted);
+    font-family: var(--font-mono);
+    font-size: 10px;
+    padding: 4px 10px;
+    cursor: pointer;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    transition: all 0.15s;
+  }
+
+  .reset-btn:hover {
+    border-color: #f07a7a;
+    color: #f07a7a;
+  }
+
+  .arena {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    flex: 1;
+    min-height: 0;
+  }
+
+  .party {
+    display: flex;
+    flex-direction: column;
+    border-right: 1px solid var(--border);
+    height: calc(100vh - 57px);
+  }
+
+  .party:last-child { border-right: none; }
+
+  .party-header {
+    padding: 16px 20px 14px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-shrink: 0;
+  }
+
+  .party-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  .party-a .party-dot { background: var(--accent-a); }
+  .party-b .party-dot { background: var(--accent-b); }
+
+  .party-label {
+    font-family: var(--font-display);
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+  }
+
+  .party-a .party-label { color: var(--accent-a); }
+  .party-b .party-label { color: var(--accent-b); }
+
+  .memory-badge {
+    margin-left: auto;
+    font-size: 9px;
+    color: var(--muted);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 2px 6px;
+    transition: all 0.3s;
+  }
+
+  .memory-badge.active {
+    border-color: rgba(212, 168, 245, 0.4);
+    color: #d4a8f5;
+  }
+
+  .knob-panel {
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    background: var(--surface);
+    flex-shrink: 0;
+  }
+
+  .knob-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .knob-name {
+    color: var(--muted);
+    font-size: 10px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    width: 80px;
+    flex-shrink: 0;
+  }
+
+  .knob-slider {
+    flex: 1;
+    -webkit-appearance: none;
+    appearance: none;
+    height: 3px;
+    border-radius: 2px;
+    outline: none;
+    cursor: pointer;
+  }
+
+  .party-a .knob-slider {
+    background: linear-gradient(to right, var(--knob-fill-a) 0%, var(--knob-fill-a) var(--pct, 50%), var(--knob-track) var(--pct, 50%), var(--knob-track) 100%);
+  }
+
+  .party-b .knob-slider {
+    background: linear-gradient(to right, var(--knob-fill-b) 0%, var(--knob-fill-b) var(--pct, 50%), var(--knob-track) var(--pct, 50%), var(--knob-track) 100%);
+  }
+
+  .knob-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    border: 2px solid var(--bg);
+    cursor: pointer;
+    transition: transform 0.1s;
+  }
+
+  .knob-slider::-webkit-slider-thumb:hover { transform: scale(1.2); }
+
+  .party-a .knob-slider::-webkit-slider-thumb { background: var(--knob-fill-a); }
+  .party-b .knob-slider::-webkit-slider-thumb { background: var(--knob-fill-b); }
+
+  .knob-labels {
+    display: flex;
+    justify-content: space-between;
+    font-size: 9px;
+    color: var(--muted);
+    letter-spacing: 0.06em;
+    width: 100%;
+    padding: 0 0 0 90px;
+    margin-top: -6px;
+  }
+
+  .knob-header {
+    font-size: 9px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 2px;
+  }
+
+  .chat-area {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    scrollbar-width: thin;
+    scrollbar-color: var(--surface2) transparent;
+  }
+
+  .msg-block {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    animation: fadeUp 0.2s ease-out;
+  }
+
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(6px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  .msg-tag {
+    font-size: 9px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--muted);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .msg-tag .turn-num {
+    background: var(--surface2);
+    border-radius: 3px;
+    padding: 1px 5px;
+    font-size: 8px;
+  }
+
+  .msg-bubble {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--r);
+    padding: 10px 14px;
+    font-size: 13px;
+    line-height: 1.6;
+    color: var(--text);
+    position: relative;
+  }
+
+  .msg-bubble.original {
+    border-style: dashed;
+    color: var(--muted);
+    font-style: italic;
+  }
+
+  .msg-bubble.reinterpreted {
+    border-color: var(--border2);
+  }
+
+  .party-a .msg-bubble.reinterpreted {
+    border-left: 3px solid var(--accent-a);
+  }
+
+  .party-b .msg-bubble.reinterpreted {
+    border-left: 3px solid var(--accent-b);
+  }
+
+  .msg-bubble.loading {
+    color: var(--muted);
+    font-style: italic;
+  }
+
+  /* drift indicator — shows how far the reinterpretation has drifted */
+  .drift-bar {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    height: 2px;
+    border-radius: 0 0 0 var(--r);
+    transition: width 0.4s ease;
+    opacity: 0.6;
+  }
+
+  .party-a .drift-bar { background: var(--accent-a); }
+  .party-b .drift-bar { background: var(--accent-b); }
+
+  .loading-dots::after {
+    content: '...';
+    animation: dots 1.2s steps(3, end) infinite;
+  }
+
+  @keyframes dots {
+    0%, 100% { content: '.'; }
+    33% { content: '..'; }
+    66% { content: '...'; }
+  }
+
+  .compose-row {
+    padding: 14px 20px;
+    border-top: 1px solid var(--border);
+    display: flex;
+    gap: 10px;
+    background: var(--surface);
+    flex-shrink: 0;
+  }
+
+  .compose-row textarea {
+    flex: 1;
+    background: var(--bg);
+    border: 1px solid var(--border2);
+    border-radius: 8px;
+    color: var(--text);
+    font-family: var(--font-mono);
+    font-size: 13px;
+    padding: 9px 12px;
+    resize: none;
+    height: 60px;
+    outline: none;
+    line-height: 1.5;
+    transition: border-color 0.15s;
+  }
+
+  .party-a .compose-row textarea:focus { border-color: var(--accent-a); }
+  .party-b .compose-row textarea:focus { border-color: var(--accent-b); }
+
+  .send-btn {
+    background: none;
+    border: 1px solid var(--border2);
+    border-radius: 8px;
+    color: var(--muted);
+    font-family: var(--font-mono);
+    font-size: 11px;
+    padding: 0 14px;
+    cursor: pointer;
+    transition: all 0.15s;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+
+  .party-a .send-btn:hover { border-color: var(--accent-a); color: var(--accent-a); }
+  .party-b .send-btn:hover { border-color: var(--accent-b); color: var(--accent-b); }
+  .send-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+
+  .empty-state {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    color: var(--muted);
+    text-align: center;
+    padding: 20px;
+  }
+
+  .empty-state p { font-size: 11px; line-height: 1.6; max-width: 220px; }
+  .empty-state .e-icon { font-size: 22px; opacity: 0.3; }
+
+  /* Distortion context panel — shown when history exists */
+  .context-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 3px 8px;
+    font-size: 9px;
+    color: var(--muted);
+    letter-spacing: 0.06em;
+    margin-bottom: 4px;
+  }
+
+  .context-pill.has-memory {
+    border-color: rgba(212, 168, 245, 0.3);
+    color: #d4a8f5;
+  }
+
+  .context-pill .dot {
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: currentColor;
+    opacity: 0.6;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Large Language Object</h1>
+  <span>reinterpretation prototype — v2</span>
+  <div class="turn-counter">turn <strong id="turn-display">0</strong></div>
+  <button class="reset-btn" onclick="resetAll()">↺ reset</button>
+</header>
+
+<div class="arena">
+  <!-- PARTY A -->
+  <div class="party party-a" id="partyA">
+    <div class="party-header">
+      <div class="party-dot"></div>
+      <div class="party-label">Object A</div>
+      <div class="memory-badge" id="mem-badge-a">no memory</div>
+    </div>
+    <div class="knob-panel">
+      <div class="knob-header">how A filters incoming messages</div>
+      <div id="knobs-a"></div>
+    </div>
+    <div class="chat-area" id="chat-a">
+      <div class="empty-state">
+        <div class="e-icon">◎</div>
+        <p>Messages from B will appear here, filtered through A's dials.<br><br>Memory accumulates across turns.</p>
+      </div>
+    </div>
+    <div class="compose-row">
+      <textarea id="input-a" placeholder="Speak as Party A…"></textarea>
+      <button class="send-btn" id="send-a" onclick="sendMessage('a')">Send →</button>
+    </div>
+  </div>
+
+  <!-- PARTY B -->
+  <div class="party party-b" id="partyB">
+    <div class="party-header">
+      <div class="party-dot"></div>
+      <div class="party-label">Object B</div>
+      <div class="memory-badge" id="mem-badge-b">no memory</div>
+    </div>
+    <div class="knob-panel">
+      <div class="knob-header">how B filters incoming messages</div>
+      <div id="knobs-b"></div>
+    </div>
+    <div class="chat-area" id="chat-b">
+      <div class="empty-state">
+        <div class="e-icon">◎</div>
+        <p>Messages from A will appear here, filtered through B's dials.<br><br>Memory accumulates across turns.</p>
+      </div>
+    </div>
+    <div class="compose-row">
+      <textarea id="input-b" placeholder="Speak as Party B…"></textarea>
+      <button class="send-btn" id="send-b" onclick="sendMessage('b')">Send →</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ─── KNOB DEFINITIONS ────────────────────────────────────────────────────────
+const KNOB_DEFS = [
+  { id: 'register',   label: 'Register',   lo: 'hostile',   hi: 'warm',        default: 50 },
+  { id: 'trust',      label: 'Trust',      lo: 'suspicious',hi: 'credulous',   default: 40 },
+  { id: 'subtext',    label: 'Subtext',    lo: 'literal',   hi: 'reading into',default: 35 },
+  { id: 'formality',  label: 'Formality',  lo: 'raw',       hi: 'formal',      default: 50 },
+  { id: 'projection', label: 'Projection', lo: 'neutral',   hi: 'self-referential', default: 20 },
+];
+
+const knobValues = { a: {}, b: {} };
+let turnCount = 0;
+
+// ─── CONVERSATION HISTORY ─────────────────────────────────────────────────────
+// histories[party] = list of {role, content} for that party's filter context
+// We store the full exchange from each party's filtered perspective
+const histories = {
+  a: [], // what A has received (filtered) and what B originally said
+  b: [], // what B has received (filtered) and what A originally said
+};
+
+// ─── KNOB BUILDER ─────────────────────────────────────────────────────────────
+function buildKnobs(party) {
+  const container = document.getElementById(`knobs-${party}`);
+  KNOB_DEFS.forEach(k => {
+    knobValues[party][k.id] = k.default;
+    const row = document.createElement('div');
+    row.className = 'knob-row';
+    row.innerHTML = `
+      <span class="knob-name">${k.label}</span>
+      <input type="range" class="knob-slider" min="0" max="100" value="${k.default}"
+        style="--pct:${k.default}%"
+        data-party="${party}" data-knob="${k.id}">
+      <span style="font-size:10px;color:var(--muted);min-width:24px;text-align:right">${k.default}</span>
+    `;
+    container.appendChild(row);
+
+    const labRow = document.createElement('div');
+    labRow.className = 'knob-labels';
+    labRow.innerHTML = `<span>${k.lo}</span><span>${k.hi}</span>`;
+    container.appendChild(labRow);
+
+    row.querySelector('input').addEventListener('input', function() {
+      const v = parseInt(this.value);
+      knobValues[party][k.id] = v;
+      this.style.setProperty('--pct', v + '%');
+      this.nextElementSibling.textContent = v;
+    });
+  });
+}
+
+buildKnobs('a');
+buildKnobs('b');
+
+// ─── PROMPT BUILDER ───────────────────────────────────────────────────────────
+function describeKnobs(party) {
+  const v = knobValues[party];
+  const segments = [];
+
+  // Register / emotional temperature
+  const reg = v.register / 100;
+  if (reg < 0.25) segments.push("You interpret everything with suspicion and mild hostility — a cold, guarded reading.");
+  else if (reg < 0.45) segments.push("Your reading is slightly cool and detached, with an undercurrent of wariness.");
+  else if (reg < 0.6) segments.push("Your reading is emotionally neutral.");
+  else if (reg < 0.8) segments.push("You read messages with warmth — you want to find the good in them.");
+  else segments.push("You read messages with intense warmth and generosity, almost naively so.");
+
+  // Trust
+  const trust = v.trust / 100;
+  if (trust < 0.25) segments.push("You assume ulterior motives and read between the lines for manipulation.");
+  else if (trust < 0.45) segments.push("You're mildly skeptical — you take things with a grain of salt.");
+  else if (trust < 0.6) segments.push("You take messages at face value.");
+  else if (trust < 0.8) segments.push("You trust what you hear and extend the benefit of the doubt.");
+  else segments.push("You are fully credulous — you believe everything, without question.");
+
+  // Subtext
+  const sub = v.subtext / 100;
+  if (sub < 0.25) segments.push("You process only the literal content. Implications pass through you unread.");
+  else if (sub < 0.45) segments.push("You occasionally notice implied meaning but mostly stay with what was said.");
+  else if (sub < 0.6) segments.push("You pick up on subtext roughly as intended.");
+  else if (sub < 0.8) segments.push("You amplify subtext — you read implied meanings loudly, sometimes over what was literally said.");
+  else segments.push("You are entirely focused on subtext. The literal words almost vanish; only what you feel is underneath remains.");
+
+  // Formality
+  const form = v.formality / 100;
+  if (form < 0.25) segments.push("You render everything in raw, unfiltered terms.");
+  else if (form < 0.45) segments.push("You strip back polite framing and get to the blunt core.");
+  else if (form < 0.6) segments.push("You preserve the register of the original.");
+  else if (form < 0.8) segments.push("You elevate the language slightly — things feel more composed and considered.");
+  else segments.push("You translate everything into formal, measured, slightly elevated prose.");
+
+  // Projection
+  const proj = v.projection / 100;
+  if (proj < 0.25) segments.push("You do not project. The message remains about the sender.");
+  else if (proj < 0.45) segments.push("Occasionally you filter things through your own experience without realizing it.");
+  else if (proj < 0.6) segments.push("You sometimes make it about yourself — relating what you hear back to your own situation.");
+  else if (proj < 0.8) segments.push("You strongly relate incoming messages to your own feelings and situation.");
+  else segments.push("You completely project — everything becomes about you. The sender's intent dissolves into your own inner state.");
+
+  return segments.join(' ');
+}
+
+function buildSystemPrompt(receivingParty) {
+  const filterDesc = describeKnobs(receivingParty);
+  const historyCount = histories[receivingParty].length / 2; // approx turns
+
+  let memoryInstruction = '';
+  if (historyCount >= 1) {
+    memoryInstruction = `\n\nYou have been operating across ${Math.round(historyCount)} previous exchange(s). Your filter has been shaping this conversation from the start. The distortions you've introduced in earlier turns have become the assumed reality — you are not correcting; you are continuing. If earlier filtered versions created an impression (of tension, warmth, suspicion, etc.), that impression colors how you read this new message too. Distortions compound.`;
+  }
+
+  return `You are a perceptual filter embedded in a person's mind. When someone speaks to them, the words pass through you before reaching conscious understanding. You do not summarize or annotate — you output the message as it lands: the same words, but warped by the parameters of this particular mind.
+
+Your filter profile:
+${filterDesc}${memoryInstruction}
+
+Rules:
+- Output only the transformed message. No framing, no quotes, no labels, no "they said", no commentary.
+- Keep grammatical person consistent with the original (if they said "I", your output keeps "I").
+- Length should be similar to the original. No padding or over-explanation.
+- Distortion scales with parameter extremity. Neutral params = subtle shift. Extreme params = heavy warping.
+- The transformation should feel like the same message heard through a distorted lens, not a rewrite or paraphrase.
+- If multiple parameters are extreme and in tension (e.g. very warm + very suspicious), let that tension produce something complex and slightly incoherent — that's realistic.`;
+}
+
+// ─── CLAUDE API CALL WITH MEMORY ─────────────────────────────────────────────
+async function callClaude(receivingParty, newMessage) {
+  const systemPrompt = buildSystemPrompt(receivingParty);
+
+  // Build messages array: history + new message
+  const messages = [
+    ...histories[receivingParty],
+    { role: 'user', content: newMessage }
+  ];
+
+  const res = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 400,
+      system: systemPrompt,
+      messages: messages
+    })
+  });
+
+  const data = await res.json();
+  if (data.content && data.content[0]) return data.content[0].text.trim();
+  throw new Error(data.error?.message || 'No response');
+}
+
+// ─── UI HELPERS ───────────────────────────────────────────────────────────────
+function clearEmpty(chatEl) {
+  const empty = chatEl.querySelector('.empty-state');
+  if (empty) empty.remove();
+}
+
+function appendMessage(chatId, tag, text, cls, turnNum) {
+  const chat = document.getElementById(chatId);
+  clearEmpty(chat);
+  const block = document.createElement('div');
+  block.className = 'msg-block';
+
+  const tagHtml = turnNum !== undefined
+    ? `${tag} <span class="turn-num">#${turnNum}</span>`
+    : tag;
+
+  block.innerHTML = `
+    <div class="msg-tag">${tagHtml}</div>
+    <div class="msg-bubble ${cls}">${text}</div>
+  `;
+  chat.appendChild(block);
+  chat.scrollTop = chat.scrollHeight;
+  return block.querySelector('.msg-bubble');
+}
+
+function updateMemoryBadge(party) {
+  const badge = document.getElementById(`mem-badge-${party}`);
+  const count = histories[party].length / 2;
+  if (count === 0) {
+    badge.textContent = 'no memory';
+    badge.classList.remove('active');
+  } else {
+    badge.textContent = `${Math.round(count)} turn${count !== 1 ? 's' : ''} in memory`;
+    badge.classList.add('active');
+  }
+}
+
+function setDrift(bubble, party, originalText, filteredText) {
+  // Rough drift: ratio of word differences
+  const orig = originalText.toLowerCase().split(/\s+/);
+  const filt = filteredText.toLowerCase().split(/\s+/);
+  const shared = orig.filter(w => filt.includes(w)).length;
+  const maxLen = Math.max(orig.length, filt.length);
+  const drift = maxLen > 0 ? 1 - (shared / maxLen) : 0;
+  const pct = Math.min(100, Math.round(drift * 140)); // amplify slightly
+
+  const bar = document.createElement('div');
+  bar.className = 'drift-bar';
+  bar.style.width = '0%';
+  bubble.style.position = 'relative';
+  bubble.appendChild(bar);
+  setTimeout(() => { bar.style.width = pct + '%'; }, 50);
+}
+
+// ─── MAIN SEND ────────────────────────────────────────────────────────────────
+async function sendMessage(from) {
+  const input = document.getElementById(`input-${from}`);
+  const msg = input.value.trim();
+  if (!msg) return;
+
+  const to = from === 'a' ? 'b' : 'a';
+  const sendBtnFrom = document.getElementById(`send-${from}`);
+  const sendBtnTo = document.getElementById(`send-${to}`);
+  sendBtnFrom.disabled = true;
+  sendBtnTo.disabled = true;
+  input.value = '';
+
+  turnCount++;
+  document.getElementById('turn-display').textContent = turnCount;
+
+  // Show original in sender's panel (for their reference)
+  appendMessage(`chat-${from}`, `you said`, msg, 'original', turnCount);
+
+  // Show original received in receiver's panel
+  appendMessage(`chat-${to}`, `received — original`, msg, 'original', turnCount);
+
+  // Loading bubble
+  const label = from === 'a' ? 'Object B' : 'Object A';
+  const loadBubble = appendMessage(
+    `chat-${to}`,
+    `${label} reads it as`,
+    '<span class="loading-dots">filtering</span>',
+    'reinterpreted loading',
+    turnCount
+  );
+
+  try {
+    const filtered = await callClaude(to, msg);
+    loadBubble.innerHTML = filtered;
+    loadBubble.classList.remove('loading');
+
+    // Add drift bar
+    setDrift(loadBubble, to, msg, filtered);
+
+    // Update memory: add this exchange to the receiver's history
+    // The receiver's history tracks: what was said to them (user) and how they filtered it (assistant)
+    histories[to].push({ role: 'user', content: msg });
+    histories[to].push({ role: 'assistant', content: filtered });
+
+    // Keep memory window: last 8 exchanges (16 messages) to avoid runaway context
+    if (histories[to].length > 16) {
+      histories[to] = histories[to].slice(histories[to].length - 16);
+    }
+
+    updateMemoryBadge(to);
+
+  } catch(e) {
+    loadBubble.innerHTML = `[error: ${e.message}]`;
+    loadBubble.classList.remove('loading');
+  }
+
+  sendBtnFrom.disabled = false;
+  sendBtnTo.disabled = false;
+  input.focus();
+}
+
+// ─── RESET ────────────────────────────────────────────────────────────────────
+function resetAll() {
+  histories.a = [];
+  histories.b = [];
+  turnCount = 0;
+  document.getElementById('turn-display').textContent = '0';
+
+  ['a', 'b'].forEach(p => {
+    updateMemoryBadge(p);
+    const chat = document.getElementById(`chat-${p}`);
+    chat.innerHTML = `
+      <div class="empty-state">
+        <div class="e-icon">◎</div>
+        <p>Conversation cleared. Memory reset.</p>
+      </div>`;
+  });
+}
+
+// ─── KEYBOARD ─────────────────────────────────────────────────────────────────
+['a','b'].forEach(p => {
+  document.getElementById(`input-${p}`).addEventListener('keydown', function(e) {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      sendMessage(p);
+    }
+  });
+});
+
+// Init badges
+updateMemoryBadge('a');
+updateMemoryBadge('b');
+</script>
+</body>
+</html>
