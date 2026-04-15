@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Large Language Object — hardware bridge</title>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,300;0,400;0,500&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+  <header>
+    <h1>Large Language Object</h1>
+    <span class="sub">single player · Pro Micro / USB serial</span>
+    <div class="serial-bar">
+      <span id="serial-status">Serial disconnected</span>
+      <button type="button" id="btn-serial">Connect serial</button>
+    </div>
+  </header>
+
+  <main>
+    <section class="panel">
+      <div class="panel-head">Filter levels</div>
+      <div class="knob-panel">
+        <div class="knob-header">Web sliders (0–100). With serial connected, physical pots update these too.</div>
+        <div id="knobs"></div>
+      </div>
+      <div class="panel-head" style="border-top:1px solid var(--border)">Memory</div>
+      <div class="knob-panel" style="padding-top:12px">
+        <span id="mem-badge">no memory</span>
+        <button type="button" id="btn-reset" style="margin-top:10px;background:none;border:1px solid var(--border2);border-radius:6px;color:var(--muted);font-family:var(--font-mono);font-size:10px;padding:4px 10px;cursor:pointer;text-transform:uppercase;letter-spacing:0.06em">Reset memory</button>
+      </div>
+    </section>
+
+    <section class="text-panel">
+      <label for="received">Received text</label>
+      <textarea id="received" placeholder="Paste or type the message to filter…"></textarea>
+
+      <div class="actions">
+        <button type="button" id="btn-translate">Translate</button>
+        <span style="font-size:10px;color:var(--muted)">⌃⌘ Enter</span>
+      </div>
+
+      <label for="translation">Translation (filtered)</label>
+      <textarea id="translation" readonly placeholder="Output appears here after Translate."></textarea>
+    </section>
+  </main>
+
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
