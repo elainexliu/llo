@@ -32,16 +32,24 @@
     </section>
 
     <section class="text-panel">
-      <label for="received">Received text</label>
-      <textarea id="received" placeholder="Paste or type the message to filter…"></textarea>
+      <div class="input-head">
+        <label for="received">Received text</label>
+        <span id="mic-status" class="mic-status">Mic idle</span>
+      </div>
+      <textarea id="received" placeholder="Paste, type, or use Start listening below…"></textarea>
+
+      <div class="actions actions-mic">
+        <button type="button" id="btn-mic-start" class="btn-mic btn-mic-start">Start listening</button>
+        <button type="button" id="btn-mic-stop" class="btn-mic btn-mic-stop" disabled>Stop listening</button>
+      </div>
 
       <div class="actions">
         <button type="button" id="btn-translate">Translate</button>
-        <span style="font-size:10px;color:var(--muted)">⌃⌘ Enter</span>
+        <span class="hint-keys">⌃⌘ Enter · Chrome / Edge for mic</span>
       </div>
 
       <label for="translation">Translation (filtered)</label>
-      <textarea id="translation" readonly placeholder="Output appears here after Translate."></textarea>
+      <textarea id="translation" readonly placeholder="Each spoken segment and manual translate append here on new lines."></textarea>
     </section>
   </main>
 

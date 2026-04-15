@@ -212,6 +212,28 @@ main {
   text-transform: uppercase;
 }
 
+.input-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.mic-status {
+  font-size: 10px;
+  color: var(--muted);
+  letter-spacing: 0.04em;
+}
+
+.mic-status.listening {
+  color: var(--accent);
+}
+
+.mic-status .interim {
+  color: var(--text);
+  opacity: 0.85;
+}
+
 .text-panel textarea {
   flex: 1;
   min-height: 120px;
@@ -227,12 +249,58 @@ main {
 
 #translation {
   opacity: 0.95;
+  min-height: 180px;
 }
 
 .actions {
   display: flex;
   gap: 10px;
   align-items: center;
+  flex-wrap: wrap;
+}
+
+.actions-mic {
+  margin-top: -4px;
+}
+
+.hint-keys {
+  font-size: 10px;
+  color: var(--muted);
+}
+
+.btn-mic {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  padding: 8px 14px;
+  border-radius: 6px;
+  cursor: pointer;
+  letter-spacing: 0.04em;
+  border: 1px solid var(--border2);
+}
+
+.btn-mic:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.btn-mic-start {
+  background: rgba(200, 240, 122, 0.12);
+  border-color: rgba(200, 240, 122, 0.35);
+  color: var(--accent);
+}
+
+.btn-mic-start:hover:not(:disabled) {
+  border-color: var(--accent);
+}
+
+.btn-mic-stop {
+  background: var(--surface);
+  color: #f0a8a8;
+  border-color: rgba(240, 168, 168, 0.35);
+}
+
+.btn-mic-stop:hover:not(:disabled) {
+  border-color: #f0a8a8;
 }
 
 #btn-translate {

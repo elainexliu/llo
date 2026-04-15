@@ -8,6 +8,8 @@ An **ESP32 XIAO** sketch is still in `firmware/xiao_sliders/` if you switch boar
 
 The UI is **HTML + JavaScript**. **Web Serial** talks to the MCU over USB without a separate desktop bridge. **Translate** sends prompts to a tiny **Node server** (`server.mjs`) so your **OpenAI API key stays in `.env`**, not in the browser.
 
+**Voice input** uses the browser **Web Speech API** (Chrome / Edge): **Start listening** / **Stop listening** capture the **default system microphone**, append each recognized phrase to **Received text**, and **append each filtered line** to **Translation** as you speak. Speech recognition runs in the browser (often via Google’s service); only the **filtered text** is sent to OpenAI through your server.
+
 ## Tenstar Robot / boards with both 5V and 3.3V pins
 
 Many Pro Micro clones print **5V**, **3.3V**, **VCC**, **RAW**, and **GND**.
@@ -46,7 +48,7 @@ Open **Chrome or Edge**: [http://localhost:8787](http://localhost:8787) (overrid
 
 1. **Connect serial** → choose the Pro Micro’s USB COM port (optional: you can use **web sliders only** without hardware).
 2. Adjust **web sliders** and/or physical pots — both drive the same **0–100** values; when serial is streaming, incoming readings update the on-screen sliders (about 20×/s).
-3. **Translate** calls OpenAI (`OPENAI_MODEL`, default `gpt-4o-mini`).
+3. **Voice:** **Start listening** / **Stop listening** use the **default mic** (Web Speech API). Each finalized phrase is appended to **Received text**, filtered, and the result **appended** to **Translation** (requests run in order). **Translate** (button) sends the **whole** Received box as **one** OpenAI call and appends one filtered block (`OPENAI_MODEL`, default `gpt-4o-mini`). **Reset memory** clears both boxes and filter history.
 
 Do **not** open `web/index.html` as a `file://` URL — the fetch to `/api/chat` will fail.
 
