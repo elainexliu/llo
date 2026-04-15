@@ -38,8 +38,6 @@ Web Serial only works on **https** or **`http://localhost`**. The app **must** b
 
 ```bash
 cd hardware-bridge
-cp .env.example .env
-# Edit .env: set OPENAI_API_KEY=sk-...
 npm install
 npm start
 ```
