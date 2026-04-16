@@ -12,22 +12,20 @@
 #error "Select board: SparkFun Pro Micro or compatible (ATmega32U4)."
 #endif
 
-static const uint8_t SLIDER_COUNT = 5;
-static const uint8_t SLIDER_PINS[SLIDER_COUNT] = { A0, A1, A2, A3, A6 };
+static const uint8_t SLIDER_COUNT = 3;  //5
+static const uint8_t SLIDER_PINS[SLIDER_COUNT] = { A0, A1, A2, }; //A3, A6 
 
 static const char *KNOB_KEYS[SLIDER_COUNT] = {
   "register",
   "trust",
   "subtext",
-  "formality",
-  "projection",
-};
+}; //  "formality", "projection",
 
 const unsigned long SEND_INTERVAL_MS = 50;
 unsigned long lastSend = 0;
 
 void setup() {
-  Serial.begin(115200);
+  Serial.begin(9600);
   analogReference(DEFAULT);
 }
 
@@ -49,3 +47,4 @@ void loop() {
   }
   Serial.println('}');
 }
+
