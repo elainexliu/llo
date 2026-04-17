@@ -12,16 +12,29 @@ const ADC_MAX = 1023;
 const SpeechRecognition =
   typeof window !== 'undefined' && (window.SpeechRecognition || window.webkitSpeechRecognition);
 
+const rotaryState = {
+  mode: 'browse',
+  selectedIndex: -1,
+};
+
 function rawToPercent(raw) {
   const n = Math.round((Number(raw) / ADC_MAX) * 100);
   return Math.max(0, Math.min(100, n));
 }
 
 function renderKnobs() {
-  KNOB_DEFS.forEach((k) => {
+  KNOB_DEFS.forEach((k, idx) => {
     const pct = knobValues[k.id];
     const row = document.querySelector(`[data-knob-row="${k.id}"]`);
     if (!row) return;
+    row.classList.toggle(
+      'rotary-browse-selected',
+      rotaryState.mode === 'browse' && idx === rotaryState.selectedIndex,
+    );
+    row.classList.toggle(
+      'rotary-edit-selected',
+      rotaryState.mode === 'edit' && idx === rotaryState.selectedIndex,
+    );
     const input = row.querySelector('.knob-slider');
     if (input) {
       input.value = String(pct);
@@ -60,6 +73,13 @@ function buildKnobRows() {
 }
 
 function applySerialPayload(obj) {
+  if (typeof obj._mode === 'string') {
+    rotaryState.mode = obj._mode === 'edit' ? 'edit' : 'browse';
+  }
+  if (Number.isInteger(obj._selected)) {
+    rotaryState.selectedIndex = Math.max(0, Math.min(KNOB_DEFS.length - 1, obj._selected));
+  }
+
   let changed = false;
   KNOB_DEFS.forEach((k) => {
     if (Object.prototype.hasOwnProperty.call(obj, k.id)) {
@@ -67,7 +87,7 @@ function applySerialPayload(obj) {
       changed = true;
     }
   });
-  if (changed) renderKnobs();
+  if (changed || typeof obj._mode === 'string' || Number.isInteger(obj._selected)) renderKnobs();
 }
 
 // ─── Web Serial (Chrome / Edge, localhost or HTTPS) ─────────────────────────
