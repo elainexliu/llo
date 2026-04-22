@@ -10,6 +10,8 @@ The UI is **HTML + JavaScript**. **Web Serial** talks to the MCU over USB withou
 
 **Voice input** uses the browser **Web Speech API** (Chrome / Edge): **Start listening** / **Stop listening** capture the **default system microphone**, append each recognized phrase to **Received text**, and **append each filtered line** to **Translation** as you speak. Speech recognition runs in the browser (often via Google’s service); only the **filtered text** is sent to OpenAI through your server.
 
+**Audio output (TTS)** defaults to **OpenAI** (`POST /api/tts` → `v1/audio/speech`) using the same **`OPENAI_API_KEY`** as chat. Pick **Model** (`gpt-4o-mini-tts`, `tts-1-hd`, `tts-1`) and **Voice** in the UI; optional defaults **`OPENAI_TTS_MODEL`** / **`OPENAI_TTS_VOICE`** in `.env`. Enable **Speak new lines** or **Speak last line**; **Stop speech** cancels playback. **Engine → Browser** uses free OS speech (lower quality) if you need it offline.
+
 ## Tenstar Robot / boards with both 5V and 3.3V pins
 
 Many Pro Micro clones print **5V**, **3.3V**, **VCC**, **RAW**, and **GND**.

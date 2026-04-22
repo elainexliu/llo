@@ -48,7 +48,44 @@
         <span class="hint-keys">⌃⌘ Enter · Chrome / Edge for mic</span>
       </div>
 
-      <label for="translation">Translation (filtered)</label>
+      <div class="input-head input-head-translation">
+        <label for="translation">Translation (filtered)</label>
+        <div class="tts-controls">
+          <label class="tts-check"><input type="checkbox" id="tts-auto"> Speak new lines</label>
+          <label class="tts-inline">Engine
+            <select id="tts-engine" class="tts-select" aria-label="TTS engine">
+              <option value="openai" selected>OpenAI (neural)</option>
+              <option value="browser">Browser (system)</option>
+            </select>
+          </label>
+          <label class="tts-inline">Model
+            <select id="tts-model" class="tts-select" aria-label="OpenAI TTS model">
+              <option value="gpt-4o-mini-tts" selected>gpt-4o-mini-tts</option>
+              <option value="tts-1-hd">tts-1-hd</option>
+              <option value="tts-1">tts-1</option>
+            </select>
+          </label>
+          <label class="tts-inline">Voice
+            <select id="tts-voice" class="tts-select" aria-label="OpenAI voice">
+              <option value="nova">nova</option>
+              <option value="alloy">alloy</option>
+              <option value="ash">ash</option>
+              <option value="coral">coral</option>
+              <option value="echo">echo</option>
+              <option value="fable">fable</option>
+              <option value="onyx">onyx</option>
+              <option value="sage">sage</option>
+              <option value="shimmer">shimmer</option>
+              <option value="ballad">ballad</option>
+              <option value="verse">verse</option>
+              <option value="marin">marin</option>
+              <option value="cedar">cedar</option>
+            </select>
+          </label>
+          <button type="button" class="btn-tts" id="btn-tts-last">Speak last line</button>
+          <button type="button" class="btn-tts" id="btn-tts-stop">Stop speech</button>
+        </div>
+      </div>
       <textarea id="translation" readonly placeholder="Each spoken segment and manual translate append here on new lines."></textarea>
     </section>
   </main>

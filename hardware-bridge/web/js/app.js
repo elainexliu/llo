@@ -157,12 +157,137 @@ function appendReceivedLine(line) {
   ta.scrollTop = ta.scrollHeight;
 }
 
+// ─── Text-to-speech: OpenAI (neural) via /api/tts, or browser Speech Synthesis ─
+let ttsPlaybackChain = Promise.resolve();
+let currentTtsAudio = null;
+let currentTtsObjectUrl = null;
+
+function stopAllSpeech() {
+  if (typeof window !== 'undefined' && window.speechSynthesis) {
+    window.speechSynthesis.cancel();
+  }
+  if (currentTtsAudio) {
+    currentTtsAudio.pause();
+    currentTtsAudio.removeAttribute('src');
+    currentTtsAudio.load();
+    currentTtsAudio = null;
+  }
+  if (currentTtsObjectUrl) {
+    URL.revokeObjectURL(currentTtsObjectUrl);
+    currentTtsObjectUrl = null;
+  }
+  ttsPlaybackChain = Promise.resolve();
+}
+
+function speakBrowserTTS(text) {
+  if (typeof window === 'undefined' || !window.speechSynthesis) {
+    return Promise.resolve();
+  }
+  const t = text.trim();
+  if (!t || t.startsWith('[error]')) return Promise.resolve();
+  return new Promise((resolve) => {
+    const u = new SpeechSynthesisUtterance(t);
+    u.lang = 'en-US';
+    u.rate = 1;
+    u.onend = () => resolve();
+    u.onerror = () => resolve();
+    window.speechSynthesis.speak(u);
+  });
+}
+
+function speakOpenAITTS(text) {
+  const t = text.trim().slice(0, 4096);
+  const voice = document.getElementById('tts-voice')?.value || 'nova';
+  const model = document.getElementById('tts-model')?.value || 'gpt-4o-mini-tts';
+
+  return fetch('/api/tts', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ text: t, voice, model }),
+  }).then(async (res) => {
+    if (!res.ok) {
+      const ct = res.headers.get('content-type') || '';
+      let errMsg = res.statusText;
+      if (ct.includes('application/json')) {
+        const j = await res.json().catch(() => ({}));
+        errMsg = j.error || errMsg;
+      } else {
+        errMsg = (await res.text()).slice(0, 200) || errMsg;
+      }
+      throw new Error(errMsg);
+    }
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    currentTtsObjectUrl = url;
+    return new Promise((resolve, reject) => {
+      const a = new Audio();
+      currentTtsAudio = a;
+      a.src = url;
+      const cleanup = () => {
+        if (currentTtsObjectUrl === url) {
+          URL.revokeObjectURL(url);
+          currentTtsObjectUrl = null;
+          currentTtsAudio = null;
+        }
+      };
+      a.onended = () => {
+        cleanup();
+        resolve();
+      };
+      a.onerror = () => {
+        cleanup();
+        reject(new Error('Audio playback failed'));
+      };
+      a.play().catch((err) => {
+        cleanup();
+        reject(err);
+      });
+    });
+  });
+}
+
+function enqueueSpeak(text) {
+  const t = text.trim();
+  if (!t || t.startsWith('[error]')) return;
+  const engine = document.getElementById('tts-engine')?.value || 'openai';
+
+  ttsPlaybackChain = ttsPlaybackChain
+    .then(async () => {
+      if (engine === 'openai') {
+        try {
+          await speakOpenAITTS(t);
+        } catch (e) {
+          console.warn('OpenAI TTS failed, falling back to browser if available:', e);
+          if (window.speechSynthesis) await speakBrowserTTS(t);
+        }
+      } else if (window.speechSynthesis) {
+        await speakBrowserTTS(t);
+      }
+    })
+    .catch(() => {});
+}
+
+function maybeSpeakNewTranslation(text) {
+  const auto = document.getElementById('tts-auto');
+  if (!auto?.checked) return;
+  enqueueSpeak(text);
+}
+
+function syncTtsEngineControls() {
+  const openai = document.getElementById('tts-engine')?.value === 'openai';
+  const modelEl = document.getElementById('tts-model');
+  const voiceEl = document.getElementById('tts-voice');
+  if (modelEl) modelEl.disabled = !openai;
+  if (voiceEl) voiceEl.disabled = !openai;
+}
+
 function appendTranslationLine(line) {
   const ta = document.getElementById('translation');
   const t = line.trim();
   if (!t) return;
   ta.value = ta.value.trim() ? `${ta.value.trim()}\n${t}` : t;
   ta.scrollTop = ta.scrollHeight;
+  maybeSpeakNewTranslation(t);
 }
 
 // ─── Web Speech (Chrome / Edge; default mic) ─────────────────────────────────
@@ -327,6 +452,7 @@ async function translate() {
 
 function resetMemory() {
   stopListening();
+  stopAllSpeech();
   voiceTranslateChain = Promise.resolve();
   lastFinalText = '';
   lastFinalAt = 0;
@@ -346,6 +472,25 @@ if (!SpeechRecognition) {
   document.getElementById('btn-mic-stop').disabled = true;
   document.getElementById('mic-status').textContent = 'Speech API unavailable — use Chrome or Edge';
 }
+
+if (!('speechSynthesis' in window)) {
+  const browserOpt = document.querySelector('#tts-engine option[value="browser"]');
+  if (browserOpt) browserOpt.disabled = true;
+}
+
+document.getElementById('tts-engine')?.addEventListener('change', syncTtsEngineControls);
+syncTtsEngineControls();
+
+document.getElementById('btn-tts-last').addEventListener('click', () => {
+  const ta = document.getElementById('translation');
+  const lines = ta.value.trim().split('\n').filter((l) => l.length > 0);
+  const last = lines[lines.length - 1];
+  if (last) enqueueSpeak(last);
+});
+
+document.getElementById('btn-tts-stop').addEventListener('click', () => {
+  stopAllSpeech();
+});
 
 document.getElementById('btn-mic-start').addEventListener('click', () => {
   if (!recognition) return;

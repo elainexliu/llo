@@ -249,6 +249,80 @@ main {
   opacity: 0.85;
 }
 
+.input-head-translation {
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+
+.tts-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 14px;
+  justify-content: flex-end;
+  max-width: 100%;
+}
+
+.tts-check {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 10px;
+  color: var(--muted);
+  letter-spacing: 0.06em;
+  text-transform: none;
+  cursor: pointer;
+}
+
+.tts-check input {
+  accent-color: var(--accent);
+}
+
+.btn-tts {
+  background: var(--surface);
+  border: 1px solid var(--border2);
+  border-radius: 6px;
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  padding: 5px 10px;
+  cursor: pointer;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.btn-tts:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.tts-inline {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 10px;
+  color: var(--muted);
+  letter-spacing: 0.04em;
+  text-transform: none;
+}
+
+.tts-select {
+  background: var(--surface);
+  border: 1px solid var(--border2);
+  border-radius: 4px;
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  padding: 4px 8px;
+  max-width: 160px;
+  cursor: pointer;
+}
+
+.tts-select:focus {
+  outline: 1px solid var(--accent);
+  outline-offset: 1px;
+}
+
 .text-panel textarea {
   flex: 1;
   min-height: 120px;
