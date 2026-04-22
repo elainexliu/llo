@@ -2,41 +2,38 @@ import 'dotenv/config';
 import express from 'express';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
+import Anthropic from '@anthropic-ai/sdk';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const app = express();
 app.use(express.json({ limit: '1mb' }));
 
 const PORT = Number(process.env.PORT) || 8787;
-const MODEL = process.env.OPENAI_MODEL || 'gpt-4o-mini';
+
+// Anthropic — for chat/filter
+const ANTHROPIC_MODEL = process.env.ANTHROPIC_MODEL;
+const ANTHROPIC_TEMPERATURE = Number.isFinite(Number(process.env.ANTHROPIC_TEMPERATURE))
+  ? Number(process.env.ANTHROPIC_TEMPERATURE)
+  : 0.2;
+const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+
+// OpenAI — for TTS only
 const TTS_MODEL = process.env.OPENAI_TTS_MODEL || 'gpt-4o-mini-tts';
 const TTS_VOICE_DEFAULT = process.env.OPENAI_TTS_VOICE || 'nova';
 
-/** Voices supported across OpenAI speech models (invalid pairs return API error). */
 const TTS_VOICES = new Set([
-  'alloy',
-  'ash',
-  'ballad',
-  'coral',
-  'echo',
-  'fable',
-  'nova',
-  'onyx',
-  'sage',
-  'shimmer',
-  'verse',
-  'marin',
-  'cedar',
+  'alloy', 'ash', 'ballad', 'coral', 'echo',
+  'fable', 'nova', 'onyx', 'sage', 'shimmer',
+  'verse', 'marin', 'cedar',
 ]);
 
 const TTS_MODELS = new Set(['tts-1', 'tts-1-hd', 'gpt-4o-mini-tts']);
 
+// ─── CHAT (Anthropic) ─────────────────────────────────────────────────────────
 app.post('/api/chat', async (req, res) => {
-  const key = process.env.OPENAI_API_KEY;
-  if (!key) {
+  if (!process.env.ANTHROPIC_API_KEY) {
     res.status(500).json({
-      error:
-        'OPENAI_API_KEY is not set. Copy .env.example to .env in hardware-bridge/ and add your key.',
+      error: 'ANTHROPIC_API_KEY is not set. Add it to your .env file in hardware-bridge/',
     });
     return;
   }
@@ -47,48 +44,40 @@ app.post('/api/chat', async (req, res) => {
     return;
   }
 
-  const openaiMessages = [{ role: 'system', content: system }, ...messages];
-
   try {
-    const r = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${key}`,
-      },
-      body: JSON.stringify({
-        model: MODEL,
-        messages: openaiMessages,
-        max_tokens: 400,
-      }),
+    const msg = await anthropic.messages.create({
+      model: ANTHROPIC_MODEL,
+      max_tokens: 400,
+      temperature: Math.max(0, Math.min(1, ANTHROPIC_TEMPERATURE)),
+      system,
+      messages,
     });
 
-    const data = await r.json();
-    if (!r.ok) {
-      const msg = data.error?.message || JSON.stringify(data);
-      res.status(r.status).json({ error: msg });
-      return;
-    }
-
-    const text = data.choices?.[0]?.message?.content?.trim();
+    const text = msg.content?.[0]?.text?.trim();
     if (!text) {
-      res.status(502).json({ error: 'Empty response from OpenAI' });
+      res.status(502).json({ error: 'Empty response from Anthropic' });
       return;
     }
 
     res.json({ text });
   } catch (e) {
-    res.status(500).json({ error: e.message || String(e) });
+    const msg = e?.message || String(e);
+    if (msg.includes('not_found_error') && msg.includes('model:')) {
+      res.status(500).json({
+        error: `${msg}. Try setting ANTHROPIC_MODEL in .env to an available model for your account (for example: claude-3-5-sonnet-latest or claude-3-5-haiku-latest).`,
+      });
+      return;
+    }
+    res.status(500).json({ error: msg });
   }
 });
 
-/** OpenAI text-to-speech — returns MP3 (same API key as chat). */
+// ─── TTS (OpenAI — Anthropic has no TTS) ─────────────────────────────────────
 app.post('/api/tts', async (req, res) => {
   const key = process.env.OPENAI_API_KEY;
   if (!key) {
     res.status(500).json({
-      error:
-        'OPENAI_API_KEY is not set. Copy .env.example to .env in hardware-bridge/ and add your key.',
+      error: 'OPENAI_API_KEY is not set. TTS requires an OpenAI key even when using Anthropic for chat.',
     });
     return;
   }

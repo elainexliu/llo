@@ -2,7 +2,7 @@ import {
   KNOB_DEFS,
   knobValues,
   histories,
-  callOpenAI,
+  callClaude,
   pushExchange,
 } from './filter-engine.js';
 
@@ -327,7 +327,7 @@ function enqueueVoiceTranslate(segment) {
   if (!msg) return;
   voiceTranslateChain = voiceTranslateChain
     .then(async () => {
-      const filtered = await callOpenAI(msg);
+      const filtered = await callClaude(msg);
       appendTranslationLine(filtered);
       pushExchange(msg, filtered);
       updateMemoryBadge();
@@ -440,7 +440,7 @@ async function translate() {
   const btn = document.getElementById('btn-translate');
   btn.disabled = true;
   try {
-    const filtered = await callOpenAI(msg);
+    const filtered = await callClaude(msg);
     appendTranslationLine(filtered);
     pushExchange(msg, filtered);
     updateMemoryBadge();

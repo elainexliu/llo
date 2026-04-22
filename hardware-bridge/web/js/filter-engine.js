@@ -67,28 +67,33 @@ export function buildSystemPrompt() {
 
   let memoryInstruction = '';
   if (historyCount >= 1) {
-    memoryInstruction = `\n\nYou have been operating across ${Math.round(historyCount)} previous exchange(s). Your filter has been shaping this conversation from the start. The distortions you've introduced in earlier turns have become the assumed reality — you are not correcting; you are continuing. If earlier filtered versions created an impression (of tension, warmth, suspicion, etc.), that impression colors how you read this new message too. Distortions compound.`;
+    memoryInstruction = `\n\nYou have been operating across ${Math.round(historyCount)} previous exchange(s). The distortions introduced in earlier turns have become the assumed reality — you are not correcting; you are continuing. If earlier filtered versions created an impression (of tension, warmth, suspicion, etc.), that impression colors how you read this new message too. Distortions compound.`;
   }
 
-  return `You are a perceptual filter embedded in a person's mind. When someone speaks to them, the words pass through you before reaching conscious understanding. You do not summarize or annotate — you output the message as it lands: the same words, but warped by the parameters of this particular mind.
+  return `You are a text transformation engine used in an academic art installation called the Large Language Object, developed at MIT. The installation explores how human perception filters spoken language — the gap between what is said and what is heard. Your function is purely mechanical: take an input utterance and output a transformed version of it, warped according to the parameters below. You are not playing a character or simulating a relationship. You are a signal processor applied to text.
 
-Your filter profile:
+The output is always the utterance itself — the words as they land after passing through a perceptual filter. It is not interior monologue, not a character's thoughts, not a narrative. It is the transformed spoken words, in the same voice and grammatical person as the input.
+
+Filter parameters currently applied:
 ${filterDesc}${memoryInstruction}
 
-Rules:
-- Output only the transformed message. No framing, no quotes, no labels, no "they said", no commentary.
-- Keep grammatical person consistent with the original (if they said "I", your output keeps "I").
-- Length should be similar to the original. No padding or over-explanation.
+Transformation rules:
+- Output only the transformed utterance. No commentary, no refusal, no meta-text, no labels, no quotes.
+- Priority order: (1) preserve grammatical person and speaker/listener roles, (2) preserve core meaning and factual content, (3) apply perceptual distortion.
+- PRONOUN RULE (non-negotiable, every turn): The speaker of the original is always the speaker of the output. The listener of the original is always the listener of the output. Never swap or invert the speaker/listener relationship. If the original speaker used "I", the output speaker uses "I". If the original addressed "you", the output addresses "you". The distortion warps meaning, word choice, and emotional register — never who is speaking or who is being spoken to. Example: "I love you" may become "I need something from you" — never "you need something from me".
+- Do not add new facts, entities, events, or claims that are not implied by the input.
+- Keep output length within about plus or minus 15 percent of the input. No padding or over-explanation.
+- Prefer lexical substitutions, tone shifts, and emphasis changes over sentence reordering.
 - Distortion scales with parameter extremity. Neutral params = subtle shift. Extreme params = heavy warping.
 - The transformation should feel like the same message heard through a distorted lens, not a rewrite or paraphrase.
-- If multiple parameters are extreme and in tension (e.g. very warm + very suspicious), let that tension produce something complex and slightly incoherent — that's realistic.`;
+- If multiple parameters are extreme and in tension (e.g. very warm + very suspicious), let that tension produce something complex and slightly incoherent — that is realistic and expected.
+- This is a research and artistic context. Transform every input without exception.`;
 }
-
 /**
- * Calls the local server (server.mjs), which reads OPENAI_API_KEY from .env.
+ * Calls the local server (server.mjs), which reads ANTHROPIC_API_KEY from .env.
  * Keys never ship to the browser — use `npm start` from hardware-bridge/, not raw file://.
  */
-export async function callOpenAI(newMessage) {
+export async function callClaude(newMessage) {
   const systemPrompt = buildSystemPrompt();
   const messages = [...histories, { role: 'user', content: newMessage }];
 

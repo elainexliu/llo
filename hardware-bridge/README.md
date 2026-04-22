@@ -6,11 +6,11 @@ An **ESP32 XIAO** sketch is still in `firmware/xiao_sliders/` if you switch boar
 
 ## Why HTML?
 
-The UI is **HTML + JavaScript**. **Web Serial** talks to the MCU over USB without a separate desktop bridge. **Translate** sends prompts to a tiny **Node server** (`server.mjs`) so your **OpenAI API key stays in `.env`**, not in the browser.
+The UI is **HTML + JavaScript**. **Web Serial** talks to the MCU over USB without a separate desktop bridge. **Translate** sends prompts to a tiny **Node server** (`server.mjs`) so your **Anthropic API key stays in `.env`**, not in the browser.
 
-**Voice input** uses the browser **Web Speech API** (Chrome / Edge): **Start listening** / **Stop listening** capture the **default system microphone**, append each recognized phrase to **Received text**, and **append each filtered line** to **Translation** as you speak. Speech recognition runs in the browser (often via Google’s service); only the **filtered text** is sent to OpenAI through your server.
+**Voice input** uses the browser **Web Speech API** (Chrome / Edge): **Start listening** / **Stop listening** capture the **default system microphone**, append each recognized phrase to **Received text**, and **append each filtered line** to **Translation** as you speak. Speech recognition runs in the browser (often via Google’s service); only the **filtered text** is sent to Anthropic through your server.
 
-**Audio output (TTS)** defaults to **OpenAI** (`POST /api/tts` → `v1/audio/speech`) using the same **`OPENAI_API_KEY`** as chat. Pick **Model** (`gpt-4o-mini-tts`, `tts-1-hd`, `tts-1`) and **Voice** in the UI; optional defaults **`OPENAI_TTS_MODEL`** / **`OPENAI_TTS_VOICE`** in `.env`. Enable **Speak new lines** or **Speak last line**; **Stop speech** cancels playback. **Engine → Browser** uses free OS speech (lower quality) if you need it offline.
+**Audio output (TTS)** defaults to **OpenAI** (`POST /api/tts` → `v1/audio/speech`) and uses **`OPENAI_API_KEY`**. Pick **Model** (`gpt-4o-mini-tts`, `tts-1-hd`, `tts-1`) and **Voice** in the UI; optional defaults **`OPENAI_TTS_MODEL`** / **`OPENAI_TTS_VOICE`** in `.env`. Enable **Speak new lines** or **Speak last line**; **Stop speech** cancels playback. **Engine → Browser** uses free OS speech (lower quality) if you need it offline.
 
 ## Tenstar Robot / boards with both 5V and 3.3V pins
 
@@ -36,9 +36,9 @@ Serial: one JSON object per line at **115200 baud**, e.g.
 `{"register":512,"trust":200,"subtext":300,"formality":400,"projection":100}`  
 (raw **10-bit**, 0–**1023**).
 
-## Run the web UI (OpenAI + serial)
+## Run the web UI (Anthropic chat + serial)
 
-Web Serial only works on **https** or **`http://localhost`**. The app **must** be opened through the Node server so `/api/chat` can reach OpenAI with your key from `.env`.
+Web Serial only works on **https** or **`http://localhost`**. The app **must** be opened through the Node server so `/api/chat` can reach Anthropic with your key from `.env`.
 
 ```bash
 cd hardware-bridge
@@ -50,10 +50,11 @@ Open **Chrome or Edge**: [http://localhost:8787](http://localhost:8787) (overrid
 
 1. **Connect serial** → choose the Pro Micro’s USB COM port (optional: you can use **web sliders only** without hardware).
 2. Adjust **web sliders** and/or physical pots — both drive the same **0–100** values; when serial is streaming, incoming readings update the on-screen sliders (about 20×/s).
-3. **Voice:** **Start listening** / **Stop listening** use the **default mic** (Web Speech API). Each finalized phrase is appended to **Received text**, filtered, and the result **appended** to **Translation** (requests run in order). **Translate** (button) sends the **whole** Received box as **one** OpenAI call and appends one filtered block (`OPENAI_MODEL`, default `gpt-4o-mini`). **Reset memory** clears both boxes and filter history.
+3. **Voice:** **Start listening** / **Stop listening** use the **default mic** (Web Speech API). Each finalized phrase is appended to **Received text**, filtered, and the result **appended** to **Translation** (requests run in order). **Translate** (button) sends the **whole** Received box as one Claude call and appends one filtered block (`ANTHROPIC_MODEL`, default `claude-3-5-haiku-latest`). **Reset memory** clears both boxes and filter history.
 
 Do **not** open `web/index.html` as a `file://` URL — the fetch to `/api/chat` will fail.
 
 ## LLM API
 
-`web/js/filter-engine.js` posts to **`/api/chat`**. `server.mjs` reads **`OPENAI_API_KEY`** (and optional **`OPENAI_MODEL`**) from **`.env`** via `dotenv`.
+`web/js/filter-engine.js` posts to **`/api/chat`**. `server.mjs` reads **`ANTHROPIC_API_KEY`** plus optional **`ANTHROPIC_MODEL`** / **`ANTHROPIC_TEMPERATURE`** from **`.env`** via `dotenv`.  
+`/api/tts` stays on OpenAI and uses **`OPENAI_API_KEY`** (optional **`OPENAI_TTS_MODEL`** / **`OPENAI_TTS_VOICE`**).
