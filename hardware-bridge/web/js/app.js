@@ -5,6 +5,7 @@ import {
   callClaude,
   pushExchange,
 } from './filter-engine.js';
+import { normalizeNfcUidString, NFC_PROFILES } from './nfc-profiles.js';
 
 /** ATmega32U4 Pro Micro: 10-bit ADC (0–1023). ESP32 12-bit builds: use 4095. */
 const ADC_MAX = 1023;
@@ -90,9 +91,60 @@ function applySerialPayload(obj) {
   if (changed || typeof obj._mode === 'string' || Number.isInteger(obj._selected)) renderKnobs();
 }
 
+/** Apply NFC UID → knob preset from `nfc-profiles.js`. */
+function applyNfcUid(uidRaw) {
+  const hex = normalizeNfcUidString(uidRaw);
+  const badge = document.getElementById('nfc-status');
+  if (!hex) {
+    if (badge) badge.textContent = 'NFC: invalid UID';
+    return;
+  }
+
+  const profile = NFC_PROFILES[hex];
+  if (!profile) {
+    if (badge) badge.textContent = `NFC: unknown tag (${hex})`;
+    return;
+  }
+
+  KNOB_DEFS.forEach((k) => {
+    if (Object.prototype.hasOwnProperty.call(profile.knobs, k.id)) {
+      const n = Number(profile.knobs[k.id]);
+      knobValues[k.id] = Number.isFinite(n) ? Math.max(0, Math.min(100, Math.round(n))) : knobValues[k.id];
+    }
+  });
+  renderKnobs();
+  if (badge) badge.textContent = `NFC: ${profile.label}`;
+}
+
+function dispatchInboundJson(obj) {
+  if (!obj || typeof obj !== 'object') return;
+  if (typeof obj.nfc_uid === 'string') {
+    applyNfcUid(obj.nfc_uid);
+  }
+  applySerialPayload(obj);
+}
+
+function parseSerialJsonLines(chunk, bufferRef) {
+  let buf = bufferRef.value + chunk;
+  const lines = buf.split('\n');
+  bufferRef.value = lines.pop() || '';
+  for (const line of lines) {
+    const t = line.trim();
+    if (!t || t[0] !== '{') continue;
+    try {
+      dispatchInboundJson(JSON.parse(t));
+    } catch (_) {
+      /* incomplete JSON line */
+    }
+  }
+}
+
 // ─── Web Serial (Chrome / Edge, localhost or HTTPS) ─────────────────────────
 let port;
 let readerAbort;
+
+let nfcPort;
+let nfcReaderAbort;
 
 async function connectSerial() {
   if (!('serial' in navigator)) {
@@ -108,8 +160,8 @@ async function connectSerial() {
       await port.close();
     } catch (_) { /* ignore */ }
     port = undefined;
-    btn.textContent = 'Connect serial';
-    document.getElementById('serial-status').textContent = 'Disconnected';
+    btn.textContent = 'Connect sliders';
+    document.getElementById('serial-status').textContent = 'Sliders disconnected';
     return;
   }
 
@@ -125,25 +177,61 @@ async function connectSerial() {
   btn.textContent = 'Disconnect';
   document.getElementById('serial-status').textContent = 'Connected';
 
+  const bufferRef = { value: '' };
   (async function readLoop() {
-    let buffer = '';
     try {
       while (!signal.aborted) {
         const { value, done } = await lineReader.read();
         if (done) break;
-        buffer += value;
-        const lines = buffer.split('\n');
-        buffer = lines.pop() || '';
-        for (const line of lines) {
-          const t = line.trim();
-          if (!t || t[0] !== '{') continue;
-          try {
-            applySerialPayload(JSON.parse(t));
-          } catch (_) { /* incomplete line */ }
-        }
+        parseSerialJsonLines(value, bufferRef);
       }
     } catch (e) {
       if (!signal.aborted) console.warn('Serial read:', e);
+    }
+  })();
+}
+
+async function connectNfcSerial() {
+  if (!('serial' in navigator)) {
+    document.getElementById('nfc-status').textContent =
+      'Web Serial not supported — use Chrome or Edge on localhost';
+    return;
+  }
+
+  const btn = document.getElementById('btn-nfc-serial');
+  if (nfcPort && nfcPort.readable) {
+    try {
+      nfcReaderAbort?.abort();
+      await nfcPort.close();
+    } catch (_) { /* ignore */ }
+    nfcPort = undefined;
+    btn.textContent = 'Connect NFC';
+    document.getElementById('nfc-status').textContent = 'NFC disconnected';
+    return;
+  }
+
+  nfcPort = await navigator.serial.requestPort();
+  await nfcPort.open({ baudRate: 115200 });
+
+  const decoder = new TextDecoderStream();
+  nfcPort.readable.pipeTo(decoder.writable);
+  const lineReader = decoder.readable.getReader();
+  nfcReaderAbort = new AbortController();
+  const signal = nfcReaderAbort.signal;
+
+  btn.textContent = 'Disconnect NFC';
+  document.getElementById('nfc-status').textContent = 'NFC connected — tap a tag';
+
+  const bufferRef = { value: '' };
+  (async function readLoop() {
+    try {
+      while (!signal.aborted) {
+        const { value, done } = await lineReader.read();
+        if (done) break;
+        parseSerialJsonLines(value, bufferRef);
+      }
+    } catch (e) {
+      if (!signal.aborted) console.warn('NFC serial read:', e);
     }
   })();
 }
@@ -634,6 +722,12 @@ document.getElementById('btn-mic-stop').addEventListener('click', () => {
 document.getElementById('btn-serial').addEventListener('click', () => {
   connectSerial().catch((e) => {
     document.getElementById('serial-status').textContent = e.message || String(e);
+  });
+});
+
+document.getElementById('btn-nfc-serial').addEventListener('click', () => {
+  connectNfcSerial().catch((e) => {
+    document.getElementById('nfc-status').textContent = e.message || String(e);
   });
 });
 

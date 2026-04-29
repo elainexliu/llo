@@ -10,10 +10,13 @@
 <body>
   <header>
     <h1>Large Language Object</h1>
-    <span class="sub">single player · Pro Micro / USB serial</span>
+    <span class="sub">single player · sliders + optional NFC</span>
     <div class="serial-bar">
-      <span id="serial-status">Serial disconnected</span>
-      <button type="button" id="btn-serial">Connect serial</button>
+      <span id="serial-status">Sliders disconnected</span>
+      <button type="button" id="btn-serial">Connect sliders</button>
+      <span class="serial-gap" aria-hidden="true"></span>
+      <span id="nfc-status">NFC disconnected</span>
+      <button type="button" id="btn-nfc-serial">Connect NFC</button>
     </div>
   </header>
 
@@ -21,7 +24,7 @@
     <section class="panel">
       <div class="panel-head">Filter levels</div>
       <div class="knob-panel">
-        <div class="knob-header">Web sliders (0–100). With serial connected, physical pots update these too.</div>
+        <div class="knob-header">Web sliders (0–100). Sliders serial = pots; NFC serial = tag presets — edit web/js/nfc-profiles.js.</div>
         <div id="knobs"></div>
       </div>
       <div class="panel-head" style="border-top:1px solid var(--border)">Memory</div>

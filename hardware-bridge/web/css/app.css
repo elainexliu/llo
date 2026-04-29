@@ -52,6 +52,16 @@ header span.sub {
   display: flex;
   align-items: center;
   gap: 10px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.serial-gap {
+  width: 1px;
+  height: 16px;
+  background: var(--border2);
+  margin: 0 4px;
+  flex-shrink: 0;
 }
 
 #serial-status {
@@ -77,9 +87,40 @@ header span.sub {
   border-color: var(--accent);
 }
 
-#btn-serial:disabled {
+#btn-serial:disabled,
+#btn-nfc-serial:disabled {
   opacity: 0.4;
   cursor: not-allowed;
+}
+
+#btn-nfc-serial {
+  background: var(--surface);
+  border: 1px solid var(--border2);
+  border-radius: 6px;
+  color: #9ec8f0;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  padding: 6px 12px;
+  cursor: pointer;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+#btn-nfc-serial:hover {
+  border-color: #7ab8f0;
+}
+
+#nfc-status {
+  font-size: 10px;
+  color: var(--muted);
+  letter-spacing: 0.06em;
+  max-width: 200px;
+}
+
+@media (min-width: 900px) {
+  #nfc-status {
+    max-width: 280px;
+  }
 }
 
 main {

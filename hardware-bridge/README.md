@@ -36,6 +36,12 @@ Serial: one JSON object per line at **115200 baud**, e.g.
 `{"register":512,"trust":200,"subtext":300,"formality":400,"projection":100}`  
 (raw **10-bit**, 0–**1023**).
 
+### NFC (separate Arduino + PN532)
+
+Flash `firmware/nfc_uid_bridge/nfc_uid_bridge.ino` on the NFC board. It prints **115200** baud lines like  
+`{"nfc_uid":"04eb3649be2a81"}`  
+(lowercase hex, no `0x`). In the browser, **Connect NFC** and tap tags; each UID loads the matching **label + knob 0–100** values from `web/js/nfc-profiles.js`. Unknown tags show the raw UID in the header status.
+
 ## Run the web UI (Anthropic chat + serial)
 
 Web Serial only works on **https** or **`http://localhost`**. The app **must** be opened through the Node server so `/api/chat` can reach Anthropic with your key from `.env`.
@@ -48,7 +54,7 @@ npm start
 
 Open **Chrome or Edge**: [http://localhost:8787](http://localhost:8787) (override with `PORT` in `.env`).
 
-1. **Connect serial** → choose the Pro Micro’s USB COM port (optional: you can use **web sliders only** without hardware).
+1. **Connect sliders** → Pro Micro USB port (optional: **web sliders only**). **Connect NFC** → second USB port for the PN532 Arduino (`firmware/nfc_uid_bridge`). Tag UIDs map to filter presets in **`web/js/nfc-profiles.js`**.
 2. Adjust **web sliders** and/or physical pots — both drive the same **0–100** values; when serial is streaming, incoming readings update the on-screen sliders (about 20×/s).
 3. **Voice:** **Start listening** / **Stop listening** use the **default mic** (Web Speech API). Each finalized phrase is appended to **Received text**, filtered, and the result **appended** to **Translation** (requests run in order). **Translate** (button) sends the **whole** Received box as one Claude call and appends one filtered block (`ANTHROPIC_MODEL`, default `claude-3-5-haiku-latest`). **Reset memory** clears both boxes and filter history.
 
