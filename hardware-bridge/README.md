@@ -10,7 +10,7 @@ The UI is **HTML + JavaScript**. **Web Serial** talks to the MCU over USB withou
 
 **Voice input** uses the browser **Web Speech API** (Chrome / Edge): **Start listening** / **Stop listening** capture the **default system microphone**, append each recognized phrase to **Received text**, and **append each filtered line** to **Translation** as you speak. Speech recognition runs in the browser (often via Google’s service); only the **filtered text** is sent to Anthropic through your server.
 
-**Audio output (TTS)** defaults to **OpenAI** (`POST /api/tts` → `v1/audio/speech`) and uses **`OPENAI_API_KEY`**. Pick **Model** (`gpt-4o-mini-tts`, `tts-1-hd`, `tts-1`) and **Voice** in the UI; optional defaults **`OPENAI_TTS_MODEL`** / **`OPENAI_TTS_VOICE`** in `.env`. Enable **Speak new lines** or **Speak last line**; **Stop speech** cancels playback. **Engine → Browser** uses free OS speech (lower quality) if you need it offline.
+**Audio output (TTS):** choose **Engine** in the UI — **OpenAI** (`POST /api/tts`, needs **`OPENAI_API_KEY`**), **ElevenLabs** (`POST /api/tts-elevenlabs`, needs **`ELEVENLABS_API_KEY`**), or **Browser** (free OS speech). For ElevenLabs, paste a **Voice ID** from the ElevenLabs app (**Voices**), or set **`ELEVENLABS_VOICE_ID`** in `.env` as the default when the field is empty. Pick **ElevenLabs model** (e.g. `eleven_multilingual_v2`, `eleven_v3`). Enable **Speak new lines** / **Speak last line**; **Stop speech** cancels playback. The line under the TTS controls reads **`/api/tts-status`** (which keys exist on the server) and briefly warns if the API call failed and **browser fallback** played instead.
 
 ## Tenstar Robot / boards with both 5V and 3.3V pins
 
@@ -57,4 +57,4 @@ Do **not** open `web/index.html` as a `file://` URL — the fetch to `/api/chat`
 ## LLM API
 
 `web/js/filter-engine.js` posts to **`/api/chat`**. `server.mjs` reads **`ANTHROPIC_API_KEY`** plus optional **`ANTHROPIC_MODEL`** / **`ANTHROPIC_TEMPERATURE`** from **`.env`** via `dotenv`.  
-`/api/tts` stays on OpenAI and uses **`OPENAI_API_KEY`** (optional **`OPENAI_TTS_MODEL`** / **`OPENAI_TTS_VOICE`**).
+**`/api/tts`** uses **`OPENAI_API_KEY`** (optional **`OPENAI_TTS_MODEL`** / **`OPENAI_TTS_VOICE`**). **`/api/tts-elevenlabs`** uses **`ELEVENLABS_API_KEY`** and optional **`ELEVENLABS_VOICE_ID`** / **`ELEVENLABS_MODEL_ID`**.

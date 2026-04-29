@@ -54,38 +54,57 @@
           <label class="tts-check"><input type="checkbox" id="tts-auto"> Speak new lines</label>
           <label class="tts-inline">Engine
             <select id="tts-engine" class="tts-select" aria-label="TTS engine">
-              <option value="openai" selected>OpenAI (neural)</option>
-              <option value="browser">Browser (system)</option>
+              <option value="openai" selected>OpenAI</option>
+              <option value="elevenlabs">ElevenLabs</option>
+              <option value="browser">Browser</option>
             </select>
           </label>
-          <label class="tts-inline">Model
-            <select id="tts-model" class="tts-select" aria-label="OpenAI TTS model">
-              <option value="gpt-4o-mini-tts" selected>gpt-4o-mini-tts</option>
-              <option value="tts-1-hd">tts-1-hd</option>
-              <option value="tts-1">tts-1</option>
-            </select>
-          </label>
-          <label class="tts-inline">Voice
-            <select id="tts-voice" class="tts-select" aria-label="OpenAI voice">
-              <option value="nova">nova</option>
-              <option value="alloy">alloy</option>
-              <option value="ash">ash</option>
-              <option value="coral">coral</option>
-              <option value="echo">echo</option>
-              <option value="fable">fable</option>
-              <option value="onyx">onyx</option>
-              <option value="sage">sage</option>
-              <option value="shimmer">shimmer</option>
-              <option value="ballad">ballad</option>
-              <option value="verse">verse</option>
-              <option value="marin">marin</option>
-              <option value="cedar">cedar</option>
-            </select>
-          </label>
+          <div id="tts-wrap-openai" class="tts-inline-group">
+            <label class="tts-inline">OpenAI model
+              <select id="tts-model" class="tts-select" aria-label="OpenAI TTS model">
+                <option value="gpt-4o-mini-tts" selected>gpt-4o-mini-tts</option>
+                <option value="tts-1-hd">tts-1-hd</option>
+                <option value="tts-1">tts-1</option>
+              </select>
+            </label>
+            <label class="tts-inline">OpenAI voice
+              <select id="tts-voice" class="tts-select" aria-label="OpenAI voice">
+                <option value="nova">nova</option>
+                <option value="alloy">alloy</option>
+                <option value="ash">ash</option>
+                <option value="coral">coral</option>
+                <option value="echo">echo</option>
+                <option value="fable">fable</option>
+                <option value="onyx">onyx</option>
+                <option value="sage">sage</option>
+                <option value="shimmer">shimmer</option>
+                <option value="ballad">ballad</option>
+                <option value="verse">verse</option>
+                <option value="marin">marin</option>
+                <option value="cedar">cedar</option>
+              </select>
+            </label>
+          </div>
+          <div id="tts-wrap-eleven" class="tts-inline-group" hidden>
+            <label class="tts-inline tts-voiceid-label">Voice ID
+              <input type="text" id="tts-eleven-voice-id" class="tts-input" placeholder="From app → Voices (optional if set in .env)" spellcheck="false" autocomplete="off">
+            </label>
+            <label class="tts-inline">ElevenLabs model
+              <select id="tts-eleven-model" class="tts-select" aria-label="ElevenLabs TTS model">
+                <option value="eleven_multilingual_v2" selected>eleven_multilingual_v2</option>
+                <option value="eleven_turbo_v2_5">eleven_turbo_v2_5</option>
+                <option value="eleven_flash_v2_5">eleven_flash_v2_5</option>
+                <option value="eleven_flash_v2">eleven_flash_v2</option>
+                <option value="eleven_turbo_v2">eleven_turbo_v2</option>
+                <option value="eleven_v3">eleven_v3</option>
+              </select>
+            </label>
+          </div>
           <button type="button" class="btn-tts" id="btn-tts-last">Speak last line</button>
           <button type="button" class="btn-tts" id="btn-tts-stop">Stop speech</button>
         </div>
       </div>
+      <p id="tts-status" class="tts-status-line" aria-live="polite">TTS: checking server…</p>
       <textarea id="translation" readonly placeholder="Each spoken segment and manual translate append here on new lines."></textarea>
     </section>
   </main>

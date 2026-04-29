@@ -29,6 +29,32 @@ const TTS_VOICES = new Set([
 
 const TTS_MODELS = new Set(['tts-1', 'tts-1-hd', 'gpt-4o-mini-tts']);
 
+// ElevenLabs — TTS (separate from OpenAI)
+const ELEVENLABS_MODEL_DEFAULT = process.env.ELEVENLABS_MODEL_ID || 'eleven_multilingual_v2';
+const ELEVENLABS_VOICE_DEFAULT = process.env.ELEVENLABS_VOICE_ID || '';
+
+const ELEVENLABS_MODELS = new Set([
+  'eleven_multilingual_v2',
+  'eleven_turbo_v2',
+  'eleven_turbo_v2_5',
+  'eleven_flash_v2',
+  'eleven_flash_v2_5',
+  'eleven_v3',
+]);
+
+const ELEVEN_OUTPUT_FORMATS = new Set([
+  'mp3_44100_32',
+  'mp3_44100_64',
+  'mp3_44100_96',
+  'mp3_44100_128',
+  'mp3_44100_192',
+  'mp3_22050_32',
+]);
+
+function isSafeElevenVoiceId(id) {
+  return typeof id === 'string' && /^[a-zA-Z0-9]{15,40}$/.test(id);
+}
+
 // ─── CHAT (Anthropic) ─────────────────────────────────────────────────────────
 app.post('/api/chat', async (req, res) => {
   if (!process.env.ANTHROPIC_API_KEY) {
@@ -127,6 +153,93 @@ app.post('/api/tts', async (req, res) => {
   } catch (e) {
     res.status(500).json({ error: e.message || String(e) });
   }
+});
+
+// ─── TTS (ElevenLabs) ─────────────────────────────────────────────────────────
+app.post('/api/tts-elevenlabs', async (req, res) => {
+  const key = process.env.ELEVENLABS_API_KEY;
+  if (!key) {
+    res.status(500).json({
+      error:
+        'ELEVENLABS_API_KEY is not set. Add it to hardware-bridge/.env (and optional ELEVENLABS_VOICE_ID default).',
+    });
+    return;
+  }
+
+  const { text, voice_id, model_id, output_format } = req.body;
+  if (typeof text !== 'string' || !text.trim()) {
+    res.status(400).json({ error: 'Expected JSON body: { text: string, voice_id?: string, model_id?: string }' });
+    return;
+  }
+
+  const vidRaw = typeof voice_id === 'string' && voice_id.trim() ? voice_id.trim() : ELEVENLABS_VOICE_DEFAULT;
+  if (!vidRaw || !isSafeElevenVoiceId(vidRaw)) {
+    res.status(400).json({
+      error:
+        'Missing or invalid voice_id. Paste a voice ID from elevenlabs.io (Voices), or set ELEVENLABS_VOICE_ID in .env.',
+    });
+    return;
+  }
+
+  const mid =
+    typeof model_id === 'string' && ELEVENLABS_MODELS.has(model_id) ? model_id : ELEVENLABS_MODEL_DEFAULT;
+  const fmt =
+    typeof output_format === 'string' && ELEVEN_OUTPUT_FORMATS.has(output_format)
+      ? output_format
+      : 'mp3_44100_128';
+
+  const input = text.trim().slice(0, 2500);
+
+  const url = new URL(`https://api.elevenlabs.io/v1/text-to-speech/${encodeURIComponent(vidRaw)}`);
+  url.searchParams.set('output_format', fmt);
+
+  try {
+    const r = await fetch(url.toString(), {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'xi-api-key': key,
+        Accept: 'audio/mpeg',
+      },
+      body: JSON.stringify({
+        text: input,
+        model_id: mid,
+      }),
+    });
+
+    if (!r.ok) {
+      let errMsg = r.statusText;
+      try {
+        const errJson = await r.json();
+        const d = errJson.detail;
+        errMsg =
+          (Array.isArray(d) ? d.map((x) => x.msg || x).join('; ') : d?.message || d) ||
+          errJson.message ||
+          JSON.stringify(errJson);
+      } catch {
+        errMsg = (await r.text()).slice(0, 300) || errMsg;
+      }
+      res.status(r.status).json({ error: String(errMsg) });
+      return;
+    }
+
+    const buf = Buffer.from(await r.arrayBuffer());
+    res.setHeader('Content-Type', 'audio/mpeg');
+    res.setHeader('Cache-Control', 'no-store');
+    res.send(buf);
+  } catch (e) {
+    res.status(500).json({ error: e.message || String(e) });
+  }
+});
+
+/** Non-secret flags so the UI can show whether API TTS is configured. */
+app.get('/api/tts-status', (req, res) => {
+  const vid = process.env.ELEVENLABS_VOICE_ID?.trim();
+  res.json({
+    openai_key_set: Boolean(process.env.OPENAI_API_KEY?.trim()),
+    elevenlabs_key_set: Boolean(process.env.ELEVENLABS_API_KEY?.trim()),
+    elevenlabs_voice_default_set: Boolean(vid && isSafeElevenVoiceId(vid)),
+  });
 });
 
 app.use(express.static(join(__dirname, 'web')));

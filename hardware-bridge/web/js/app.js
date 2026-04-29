@@ -161,6 +161,87 @@ function appendReceivedLine(line) {
 let ttsPlaybackChain = Promise.resolve();
 let currentTtsAudio = null;
 let currentTtsObjectUrl = null;
+let ttsStatusFlashTimer = null;
+
+async function fetchTtsServerFlags() {
+  try {
+    const r = await fetch('/api/tts-status');
+    if (!r.ok) return null;
+    return await r.json();
+  } catch {
+    return null;
+  }
+}
+
+function clearTtsStatusFlash() {
+  if (ttsStatusFlashTimer) {
+    clearTimeout(ttsStatusFlashTimer);
+    ttsStatusFlashTimer = null;
+  }
+  document.getElementById('tts-status')?.classList.remove('tts-status-warn');
+}
+
+function flashTtsWarning(message) {
+  const el = document.getElementById('tts-status');
+  if (!el) return;
+  clearTtsStatusFlash();
+  el.classList.add('tts-status-warn');
+  el.textContent = String(message).slice(0, 240);
+  ttsStatusFlashTimer = setTimeout(() => {
+    ttsStatusFlashTimer = null;
+    el.classList.remove('tts-status-warn');
+    void refreshTtsStatus();
+  }, 6500);
+}
+
+async function refreshTtsStatus() {
+  const el = document.getElementById('tts-status');
+  if (!el) return;
+  if (el.classList.contains('tts-status-warn') && ttsStatusFlashTimer) return;
+
+  const engine = document.getElementById('tts-engine')?.value || 'openai';
+  const server = await fetchTtsServerFlags();
+
+  if (!server) {
+    el.textContent =
+      'TTS: cannot load /api/tts-status — open this app via http://localhost:8787 (npm start), not file://';
+    return;
+  }
+
+  if (engine === 'browser') {
+    el.textContent = window.speechSynthesis
+      ? 'TTS: Browser (system speech) — no API keys used'
+      : 'TTS: Browser selected but speechSynthesis unavailable in this browser';
+    return;
+  }
+
+  if (engine === 'openai') {
+    const m = document.getElementById('tts-model')?.value || '';
+    const v = document.getElementById('tts-voice')?.value || '';
+    if (!server.openai_key_set) {
+      el.textContent = `TTS: Engine OpenAI (${m} · ${v}) — server has no OPENAI_API_KEY; playback will use browser fallback`;
+      return;
+    }
+    el.textContent = `TTS: OpenAI ready — ${m} · ${v} (POST /api/tts)`;
+    return;
+  }
+
+  if (engine === 'elevenlabs') {
+    const mid = document.getElementById('tts-eleven-model')?.value || '';
+    const vid = document.getElementById('tts-eleven-voice-id')?.value?.trim() || '';
+    if (!server.elevenlabs_key_set) {
+      el.textContent =
+        'TTS: Engine ElevenLabs — server has no ELEVENLABS_API_KEY; playback will use browser fallback';
+      return;
+    }
+    if (!vid && !server.elevenlabs_voice_default_set) {
+      el.textContent = `TTS: ElevenLabs key OK — set Voice ID or ELEVENLABS_VOICE_ID in .env (${mid})`;
+      return;
+    }
+    const vnote = vid ? `voice ${vid.slice(0, 10)}…` : 'default voice from .env';
+    el.textContent = `TTS: ElevenLabs ready — ${mid} · ${vnote} (POST /api/tts-elevenlabs)`;
+  }
+}
 
 function stopAllSpeech() {
   if (typeof window !== 'undefined' && window.speechSynthesis) {
@@ -195,6 +276,51 @@ function speakBrowserTTS(text) {
   });
 }
 
+function playBlobAsMpegAudio(blob) {
+  const url = URL.createObjectURL(blob);
+  currentTtsObjectUrl = url;
+  return new Promise((resolve, reject) => {
+    const a = new Audio();
+    currentTtsAudio = a;
+    a.src = url;
+    const cleanup = () => {
+      if (currentTtsObjectUrl === url) {
+        URL.revokeObjectURL(url);
+        currentTtsObjectUrl = null;
+        currentTtsAudio = null;
+      }
+    };
+    a.onended = () => {
+      cleanup();
+      resolve();
+    };
+    a.onerror = () => {
+      cleanup();
+      reject(new Error('Audio playback failed'));
+    };
+    a.play().catch((err) => {
+      cleanup();
+      reject(err);
+    });
+  });
+}
+
+async function ttsResponseToPlayback(res) {
+  if (!res.ok) {
+    const ct = res.headers.get('content-type') || '';
+    let errMsg = res.statusText;
+    if (ct.includes('application/json')) {
+      const j = await res.json().catch(() => ({}));
+      errMsg = j.error || errMsg;
+    } else {
+      errMsg = (await res.text()).slice(0, 300) || errMsg;
+    }
+    throw new Error(errMsg);
+  }
+  const blob = await res.blob();
+  return playBlobAsMpegAudio(blob);
+}
+
 function speakOpenAITTS(text) {
   const t = text.trim().slice(0, 4096);
   const voice = document.getElementById('tts-voice')?.value || 'nova';
@@ -204,46 +330,19 @@ function speakOpenAITTS(text) {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ text: t, voice, model }),
-  }).then(async (res) => {
-    if (!res.ok) {
-      const ct = res.headers.get('content-type') || '';
-      let errMsg = res.statusText;
-      if (ct.includes('application/json')) {
-        const j = await res.json().catch(() => ({}));
-        errMsg = j.error || errMsg;
-      } else {
-        errMsg = (await res.text()).slice(0, 200) || errMsg;
-      }
-      throw new Error(errMsg);
-    }
-    const blob = await res.blob();
-    const url = URL.createObjectURL(blob);
-    currentTtsObjectUrl = url;
-    return new Promise((resolve, reject) => {
-      const a = new Audio();
-      currentTtsAudio = a;
-      a.src = url;
-      const cleanup = () => {
-        if (currentTtsObjectUrl === url) {
-          URL.revokeObjectURL(url);
-          currentTtsObjectUrl = null;
-          currentTtsAudio = null;
-        }
-      };
-      a.onended = () => {
-        cleanup();
-        resolve();
-      };
-      a.onerror = () => {
-        cleanup();
-        reject(new Error('Audio playback failed'));
-      };
-      a.play().catch((err) => {
-        cleanup();
-        reject(err);
-      });
-    });
-  });
+  }).then(ttsResponseToPlayback);
+}
+
+function speakElevenLabsTTS(text) {
+  const t = text.trim().slice(0, 2500);
+  const voice_id = document.getElementById('tts-eleven-voice-id')?.value?.trim() || undefined;
+  const model_id = document.getElementById('tts-eleven-model')?.value || 'eleven_multilingual_v2';
+
+  return fetch('/api/tts-elevenlabs', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ text: t, voice_id, model_id }),
+  }).then(ttsResponseToPlayback);
 }
 
 function enqueueSpeak(text) {
@@ -257,7 +356,18 @@ function enqueueSpeak(text) {
         try {
           await speakOpenAITTS(t);
         } catch (e) {
+          const msg = e?.message || String(e);
           console.warn('OpenAI TTS failed, falling back to browser if available:', e);
+          flashTtsWarning(`Heard via browser — OpenAI failed: ${msg}`);
+          if (window.speechSynthesis) await speakBrowserTTS(t);
+        }
+      } else if (engine === 'elevenlabs') {
+        try {
+          await speakElevenLabsTTS(t);
+        } catch (e) {
+          const msg = e?.message || String(e);
+          console.warn('ElevenLabs TTS failed, falling back to browser if available:', e);
+          flashTtsWarning(`Heard via browser — ElevenLabs failed: ${msg}`);
           if (window.speechSynthesis) await speakBrowserTTS(t);
         }
       } else if (window.speechSynthesis) {
@@ -274,11 +384,23 @@ function maybeSpeakNewTranslation(text) {
 }
 
 function syncTtsEngineControls() {
-  const openai = document.getElementById('tts-engine')?.value === 'openai';
+  const engine = document.getElementById('tts-engine')?.value || 'openai';
+  const wrapO = document.getElementById('tts-wrap-openai');
+  const wrapE = document.getElementById('tts-wrap-eleven');
   const modelEl = document.getElementById('tts-model');
   const voiceEl = document.getElementById('tts-voice');
-  if (modelEl) modelEl.disabled = !openai;
-  if (voiceEl) voiceEl.disabled = !openai;
+  const elevenVid = document.getElementById('tts-eleven-voice-id');
+  const elevenModel = document.getElementById('tts-eleven-model');
+
+  if (wrapO) wrapO.hidden = engine !== 'openai';
+  if (wrapE) wrapE.hidden = engine !== 'elevenlabs';
+
+  if (modelEl) modelEl.disabled = engine !== 'openai';
+  if (voiceEl) voiceEl.disabled = engine !== 'openai';
+  if (elevenVid) elevenVid.disabled = engine !== 'elevenlabs';
+  if (elevenModel) elevenModel.disabled = engine !== 'elevenlabs';
+
+  void refreshTtsStatus();
 }
 
 function appendTranslationLine(line) {
@@ -478,7 +600,15 @@ if (!('speechSynthesis' in window)) {
   if (browserOpt) browserOpt.disabled = true;
 }
 
-document.getElementById('tts-engine')?.addEventListener('change', syncTtsEngineControls);
+document.getElementById('tts-engine')?.addEventListener('change', () => {
+  clearTtsStatusFlash();
+  syncTtsEngineControls();
+});
+['tts-model', 'tts-voice', 'tts-eleven-model'].forEach((id) => {
+  document.getElementById(id)?.addEventListener('change', () => void refreshTtsStatus());
+});
+document.getElementById('tts-eleven-voice-id')?.addEventListener('input', () => void refreshTtsStatus());
+
 syncTtsEngineControls();
 
 document.getElementById('btn-tts-last').addEventListener('click', () => {
