@@ -78,11 +78,17 @@
  #endif
  
  // ─── PIN CONFIG ───────────────────────────────────────────────────────────────
- 
-static const uint8_t SLIDER_PIN = A0;
-static const uint8_t ENC_CLK    = 0;
-static const uint8_t ENC_DT     = 1;
-static const uint8_t ENC_SW     = 4;
+ #include <Wire.h>
+ #include <LiquidCrystal_I2C.h>
+
+// ─── LCD ──────────────────────────────────────────────────────────────────────
+LiquidCrystal_I2C lcd(0x27, 16, 2);
+
+static const uint8_t SLIDER_PIN  = A0;
+static const uint8_t ENC_CLK     = 0;
+static const uint8_t ENC_DT      = 1;
+static const uint8_t ENC_SW      = 4;
+static const uint8_t PRESET_BTN  = A1;
 
 static const uint8_t FILTER_COUNT = 5;
 
@@ -95,8 +101,27 @@ static const char* FILTER_LABELS[FILTER_COUNT] = {
 
 int filterValues[FILTER_COUNT] = { 50, 40, 35, 50, 20 };
 
+// ─── PRESET ───────────────────────────────────────────────────────────────────
+static const int PRESET[FILTER_COUNT] = { 20, 10, 75, 5, 50 };
+
 enum Mode { BROWSE, EDIT };
 Mode mode = BROWSE;
+
+Mode lastMode            = BROWSE;
+int  lastSelected        = -1;
+int  lastDisplayedValue  = -1;
+
+void loadPreset() {
+  for (uint8_t i = 0; i < FILTER_COUNT; i++) {
+    filterValues[i] = PRESET[i];
+  }
+  mode = BROWSE;
+  // Invalidate display cache to force redraw
+  lastMode           = EDIT;
+  lastSelected       = -1;
+  lastDisplayedValue = -1;
+  sendJSON();
+}
 
 volatile int encDelta = 0;
 static uint8_t lastEncState = 0;
@@ -121,8 +146,9 @@ int selectedFilter = 0;
 int editValue      = 50;
 static int encAccum = 0;
 
-unsigned long lastButtonTime     = 0;
-const unsigned long DEBOUNCE_MS  = 200;
+unsigned long lastButtonTime       = 0;
+unsigned long lastPresetButtonTime = 0;
+const unsigned long DEBOUNCE_MS    = 200;
 const unsigned long SEND_INTERVAL_MS = 50;
 unsigned long lastSend = 0;
 
@@ -150,12 +176,57 @@ void sendJSON() {
   Serial.println('}');
 }
 
+// ─── DISPLAY ──────────────────────────────────────────────────────────────────
+void updateDisplay() {
+  int currentValue = (mode == EDIT) ? editValue : filterValues[selectedFilter];
+
+  if (mode           == lastMode          &&
+      selectedFilter  == lastSelected      &&
+      currentValue    == lastDisplayedValue) return;
+
+  lastMode           = mode;
+  lastSelected       = selectedFilter;
+  lastDisplayedValue = currentValue;
+
+  lcd.clear();
+
+  if (mode == BROWSE) {
+    lcd.setCursor(0, 0);
+    lcd.print("> ");
+    lcd.print(FILTER_LABELS[selectedFilter]);
+    lcd.setCursor(0, 1);
+    lcd.print("Value: ");
+    lcd.print(filterValues[selectedFilter]);
+  }
+  else { // EDIT
+    lcd.setCursor(0, 0);
+    lcd.print("* ");
+    lcd.print(FILTER_LABELS[selectedFilter]);
+    lcd.setCursor(0, 1);
+    lcd.print("Set: ");
+    lcd.print(editValue);
+    lcd.print("   ");
+  }
+}
+
+// ─── SETUP ────────────────────────────────────────────────────────────────────
 void setup() {
   Serial.begin(115200);
 
-  pinMode(ENC_CLK, INPUT_PULLUP);
-  pinMode(ENC_DT,  INPUT_PULLUP);
-  pinMode(ENC_SW,  INPUT_PULLUP);
+  Wire.begin();
+  lcd.init();
+  lcd.backlight();
+  lcd.setCursor(0, 0);
+  lcd.print("LLO Filter");
+  lcd.setCursor(0, 1);
+  lcd.print("Starting...");
+  delay(800);
+  lcd.clear();
+
+  pinMode(ENC_CLK,    INPUT_PULLUP);
+  pinMode(ENC_DT,     INPUT_PULLUP);
+  pinMode(ENC_SW,     INPUT_PULLUP);
+  pinMode(PRESET_BTN, INPUT_PULLUP);
 
   lastEncState = (digitalRead(ENC_CLK) << 1) | digitalRead(ENC_DT);
 
@@ -165,6 +236,7 @@ void setup() {
   analogReference(DEFAULT);
 }
 
+// ─── LOOP ─────────────────────────────────────────────────────────────────────
 void loop() {
   unsigned long now = millis();
 
@@ -175,21 +247,29 @@ void loop() {
   encDelta = 0;
   interrupts();
 
-  // Accumulate and threshold by pulses-per-detent
   encAccum += rawDelta;
-  const int PULSES_PER_DETENT = 4; // try 4 if still jumping
+  const int PULSES_PER_DETENT = 4;
   int delta = encAccum / PULSES_PER_DETENT;
   encAccum %= PULSES_PER_DETENT;
 
-  // Button debounce
+  // Encoder button
   bool clicked = false;
   if (digitalRead(ENC_SW) == LOW && (now - lastButtonTime > DEBOUNCE_MS)) {
     clicked = true;
     lastButtonTime = now;
   }
 
-  // Slider
-  int sliderPct = rawToPercent(analogRead(SLIDER_PIN));
+  // Preset button — triggers when HIGH (you said "when button is high")
+  if (digitalRead(PRESET_BTN) == HIGH && (now - lastPresetButtonTime > DEBOUNCE_MS)) {
+    lastPresetButtonTime = now;
+    loadPreset();
+  }
+
+  // Slider — only read in EDIT mode to avoid noise
+  int sliderPct = 0;
+  if (mode == EDIT) {
+    sliderPct = rawToPercent(analogRead(SLIDER_PIN));
+  }
 
   // State machine
   if (mode == BROWSE) {
@@ -217,4 +297,6 @@ void loop() {
       sendJSON();
     }
   }
+
+  updateDisplay();
 }
