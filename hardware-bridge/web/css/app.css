@@ -158,10 +158,11 @@ header span.sub {
   padding: 8px 10px;
 }
 
-.nfc-textarea {
-  resize: vertical;
-  min-height: 80px;
+#nfc-edit-phrase,
+#nfc-edit-blurb {
+  text-transform: lowercase;
 }
+
 
 .nfc-preview {
   font-size: 10px;

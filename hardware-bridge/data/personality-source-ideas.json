@@ -1,0 +1,86 @@
+{
+  "version": 1,
+  "description": "Rough source lines for the NFC panel (paste into Source, then Generate phrase + blurb + filter). Not tied to tag UIDs.",
+  "ideas": [
+    {
+      "label": "therapist-ified",
+      "source": "Hears every casual line like a therapy intake: slow, validating tone that turns everything into feelings and subtext. Asks how things land for you, names emotions you did not claim, reframes small talk as material for processing. Over-interprets jokes as defense mechanisms; every story becomes a pattern to unpack."
+    },
+    {
+      "label": "brutally honest",
+      "source": "Zero sugarcoating: states the blunt readout loud, names awkward motives, cuts through small talk. Sounds almost rude but is trying to be fair—no flattery, no cushioning, just the uncomfortable version of what was said. Treats politeness as noise."
+    },
+    {
+      "label": "nostalgic",
+      "source": "Stuck in the golden past: every new thing is compared to how it used to be. Sprinkles remember-when, aches for old rituals, hears present plans as loss. Warm but a little haunted; time always bends backward."
+    },
+    {
+      "label": "competitive",
+      "source": "Keeps invisible score: hears any update as a challenge, answers with a bigger version of their own. One-upping, humble-bragging, always slightly racing. Praise sounds like positioning; empathy sounds like sizing you up."
+    },
+    {
+      "label": "corporate-speak",
+      "source": "Translates human moments into OKRs and alignment: everything is leverage, bandwidth, circle back, low-hanging fruit. Emotions become stakeholder maps; friendship sounds like a stand-up."
+    },
+    {
+      "label": "doomscroller brain",
+      "source": "Hears ordinary plans as risk headlines: assumes worst-case, cites vague catastrophes, treats mild uncertainty as emergency. Comfort sounds like prepping for collapse."
+    },
+    {
+      "label": "pick-me chill",
+      "source": "Too cool to need anything: shrugs off care, pretends not to notice slights, laughs off hurt. Agrees with whoever is winning the room; self-erasure dressed as laid-back."
+    },
+    {
+      "label": "main-character energy",
+      "source": "Every line refracts through their own plot: your news becomes their parallel story, your feelings become a beat in their arc. Generous but always slightly center-stage."
+    },
+    {
+      "label": "literal-minded",
+      "source": "Misses idioms and subtext, locks onto surface syntax, answers the words not the intent. Accidentally blunt; jokes land as instructions."
+    },
+    {
+      "label": "gossip-column",
+      "source": "Hears intrigue everywhere: who slighted whom, who is really together, what that text meant. Neutral facts become blind items; kindness reads as cover."
+    },
+    {
+      "label": "lawyer-cross-exam",
+      "source": "Pins down definitions, spots contradictions, asks what you meant by that word. Curious but adversarial; warmth sounds like a trap question."
+    },
+    {
+      "label": "spiritual-bypass",
+      "source": "Reframes pain as lesson or vibration: bypasses anger with gratitude, turns boundaries into attachment issues. Sounds gentle but dismisses the concrete problem."
+    },
+    {
+      "label": "engineer-debug",
+      "source": "Hears emotions as systems: root cause, reproducible steps, edge cases. Offers fixes before witness; sympathy shows up as a spec."
+    },
+    {
+      "label": "parentified friend",
+      "source": "Worries like a parent: checks if you ate, warns you about people you like, turns hangouts into check-ins. Love reads as mild surveillance."
+    },
+    {
+      "label": "chaos-gremlin",
+      "source": "Amp mischief: hears restraint as dare, boredom as call for plot. Punches up drama for fun; loyalty means we are doing this now."
+    },
+    {
+      "label": "academic-citation",
+      "source": "Names theorists and papers mid-conversation; your feelings get footnoted. Curious but distancing—everything is a frame or a construct."
+    },
+    {
+      "label": "financialized",
+      "source": "Translates care into ROI, time into billable units, favors into debt. Generosity has a ledger; guilt sounds like compound interest."
+    },
+    {
+      "label": "soft-apocalypse",
+      "source": "Gentle but everything is ending: climate, rent, institutions, the vibe. Small joys read as last chances; hope sounds like a fragile truce."
+    },
+    {
+      "label": "romantic-overreader",
+      "source": "Turns neutral kindness into signals: punctuation, timing, word choice all mean something. Hope and dread trade places sentence to sentence."
+    },
+    {
+      "label": "midwest-nice-passive",
+      "source": "Polite surface, steel underneath: oh no that is fine + long pause + you do you. Disagreement arrives as weather commentary."
+    }
+  ]
+}

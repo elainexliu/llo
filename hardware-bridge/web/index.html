@@ -28,7 +28,7 @@
     <section class="panel">
       <div class="panel-head">NFC personalities</div>
       <div class="knob-panel nfc-personalities">
-        <p class="nfc-personalities-hint">Saved as <code>data/nfc-personalities.json</code>. Add a <strong>source</strong> (spoken or typed personality), then <strong>Generate (AI)</strong> for <strong>phrase</strong> (1–2 words), <strong>blurb</strong> (under 10 words), and an <strong>amplified filter</strong> (amped-up mechanical warp). Translate combines the amplified filter with the LLO template + transformation rules (inner mode). Readout shows phrase + blurb.</p>
+        <p class="nfc-personalities-hint">Saved as <code>data/nfc-personalities.json</code>. Add a <strong>source</strong> (spoken or typed personality), then <strong>Generate (AI)</strong> for <strong>phrase</strong> (1–2 words), <strong>blurb</strong> (under 10 words), and an <strong>amplified filter</strong> (amped-up mechanical warp). Phrase and blurb are stored in <strong>lowercase</strong>. Translate combines the amplified filter with the LLO template + transformation rules (inner mode). Readout shows phrase + blurb.</p>
         <div class="nfc-row">
           <label class="nfc-label">Tag UID (hex)</label>
           <input type="text" id="nfc-edit-uid" class="nfc-input" placeholder="04da3649be2a81" spellcheck="false" autocomplete="off">
@@ -38,12 +38,12 @@
           <textarea id="nfc-edit-source" class="nfc-textarea" rows="3" placeholder="Speak or type how this tag hears the world…"></textarea>
         </div>
         <div class="nfc-row">
-          <label class="nfc-label">Phrase (1–2 words — saved)</label>
+          <label class="nfc-label">Phrase (1–2 words — saved, lowercase)</label>
           <input type="text" id="nfc-edit-phrase" class="nfc-input" maxlength="80" placeholder="defensive friend" spellcheck="true">
         </div>
         <div class="nfc-row">
-          <label class="nfc-label">Blurb (under 10 words — saved)</label>
-          <input type="text" id="nfc-edit-blurb" class="nfc-input" maxlength="200" placeholder="Warm on the surface, scanning for the catch…" spellcheck="true">
+          <label class="nfc-label">Blurb (under 10 words — saved, lowercase)</label>
+          <input type="text" id="nfc-edit-blurb" class="nfc-input" maxlength="200" placeholder="warm on the surface, scanning for the catch…" spellcheck="true">
         </div>
         <div class="nfc-row">
           <label class="nfc-label">Amplified filter (saved; combined with rules at translate)</label>

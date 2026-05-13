@@ -13,7 +13,8 @@ app.use(express.json({ limit: '1mb' }));
 const PORT = Number(process.env.PORT) || 8787;
 
 // Anthropic — for chat/filter
-const ANTHROPIC_MODEL = process.env.ANTHROPIC_MODEL;
+/** Default when .env omits ANTHROPIC_MODEL (synthesize + /api/chat need a concrete id). */
+const ANTHROPIC_MODEL = (process.env.ANTHROPIC_MODEL || 'claude-3-5-haiku-latest').trim();
 const ANTHROPIC_TEMPERATURE = Number.isFinite(Number(process.env.ANTHROPIC_TEMPERATURE))
   ? Number(process.env.ANTHROPIC_TEMPERATURE)
   : 0.2;
@@ -67,6 +68,11 @@ function normalizePersonalityUid(uid) {
     .replace(/[^0-9a-f]/g, '');
 }
 
+/** Phrase + blurb are stored all-lowercase for UI consistency. */
+function lowerNfcLabel(s) {
+  return (typeof s === 'string' ? s.trim() : '').toLowerCase();
+}
+
 function normalizeNfcPersonalitiesPut(body) {
   if (!body || typeof body !== 'object') return { error: 'Invalid JSON body' };
   if (body.version !== 1) return { error: 'Expected { version: 1, tags: { ... } }' };
@@ -78,12 +84,12 @@ function normalizeNfcPersonalitiesPut(body) {
     const uid = normalizePersonalityUid(key);
     if (!uid || !/^[0-9a-f]{4,24}$/.test(uid)) return { error: `Invalid UID key: ${key}` };
     if (!entry || typeof entry !== 'object') return { error: `Invalid entry for ${uid}` };
-    const phrase = typeof entry.phrase === 'string' ? entry.phrase.trim() : '';
-    const summaryLegacy = typeof entry.summary === 'string' ? entry.summary.trim() : '';
+    const phrase = lowerNfcLabel(entry.phrase);
+    const summaryLegacy = lowerNfcLabel(entry.summary);
     const phraseFinal = phrase || summaryLegacy;
-    if (!phraseFinal) return { error: `Missing phrase (or legacy summary) for ${uid}` };
+    if (!phraseFinal) return { error: `Missing phrase for ${uid} (legacy clients may still send summary as the label)` };
 
-    const blurb = typeof entry.blurb === 'string' ? entry.blurb.trim() : '';
+    const blurb = lowerNfcLabel(entry.blurb);
     if (blurb.length > 200) return { error: `blurb too long for ${uid}` };
 
     const prompt = typeof entry.prompt === 'string' ? entry.prompt.trim() : '';
@@ -99,7 +105,7 @@ function normalizeNfcPersonalitiesPut(body) {
     if (pf !== undefined && pf !== 'inner' && pf !== 'full') {
       return { error: `promptFormat must be "inner" or "full" for ${uid}` };
     }
-    tags[uid] = { phrase: phraseFinal, blurb, prompt, summary: phraseFinal };
+    tags[uid] = { phrase: phraseFinal, blurb, prompt };
     if (pf === 'full') tags[uid].promptFormat = 'full';
     if (source) tags[uid].source = source;
     if (translationSystemPrompt) tags[uid].translationSystemPrompt = translationSystemPrompt;
@@ -112,8 +118,8 @@ const NFC_SYNTH_META_SYSTEM = `You help author a perceptual text filter for the 
 The user message is a spoken or written description of a personality / listening stance (how someone "hears" incoming lines).
 
 Reply with ONLY valid JSON (no markdown fences, no commentary). Exactly these keys:
-- "phrase": string, 1–3 words, Title Case or lowercase ok — a tight label (e.g. "defensive friend", "nostalgia haze").
-- "blurb": string, at most 10 words, one short evocative sentence — no trailing period required if it reads cleaner without.
+- "phrase": string, 1–3 words — a tight label, **all lowercase** (e.g. "defensive friend", "nostalgia haze").
+- "blurb": string, at most 10 words, one short evocative sentence, **all lowercase** — no trailing period required if it reads cleaner without.
 - "amplifiedFilter": string, roughly 400–2800 characters. This is ONLY the perceptual-filter instructions for a later Claude call: describe how incoming utterances get warped (register, trust, subtext, formality, projection, habitual misreadings, favorite vocabulary tilts) with creative liberty to **amp the vibe strongly**. Two different filters should yield obviously different transformed lines on the same input — avoid vague or timid instructions that read like generic "be mindful" text. It must read as a mechanical "signal processor" lens, not roleplay dialogue. Do NOT include the words "Transformation rules" or duplicate boilerplate about output format — a separate system template will wrap this and append fixed transformation rules.
 
 Escape double quotes inside JSON strings per JSON rules.`;
@@ -172,7 +178,7 @@ Produce phrase, blurb, and amplifiedFilter as specified in your system instructi
 Respond in JSON only:
 {
   "phrase": "one two words",
-  "blurb": "at most ten words here",
+  "blurb": "at most ten words all lowercase",
   "amplifiedFilter": "long instructions only — no transformation-rules block"
 }`;
 
@@ -222,25 +228,27 @@ Respond in JSON only:
       (typeof parsed.prompt === 'string' && parsed.prompt.trim()) ||
       '';
 
-    if (!phrase || !amplifiedFilter) {
+    const phraseLc = lowerNfcLabel(phrase);
+    const blurbLc = lowerNfcLabel(blurb);
+
+    if (!phraseLc || !amplifiedFilter) {
       res.status(502).json({ error: 'JSON missing phrase or amplifiedFilter', parsed });
       return;
     }
-    if (phrase.length > 80) {
+    if (phraseLc.length > 80) {
       res.status(502).json({ error: 'Model phrase too long; try again.' });
       return;
     }
-    const wordCount = blurb ? blurb.split(/\s+/).filter(Boolean).length : 0;
-    if (blurb && wordCount > 12) {
+    const wordCount = blurbLc ? blurbLc.split(/\s+/).filter(Boolean).length : 0;
+    if (blurbLc && wordCount > 12) {
       res.status(502).json({ error: 'Model blurb exceeds ~10 words; try again.' });
       return;
     }
 
     res.json({
-      phrase,
-      blurb,
+      phrase: phraseLc,
+      blurb: blurbLc,
       amplifiedFilter,
-      summary: phrase,
       prompt: amplifiedFilter,
       promptFormat: 'inner',
     });

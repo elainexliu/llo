@@ -8,12 +8,16 @@ import {
 } from './filter-engine.js';
 import { normalizeNfcUidString } from './nfc-profiles.js';
 
-/** @type {{ version: number, tags: Record<string, { phrase?: string, blurb?: string, summary: string, prompt: string, source?: string, translationSystemPrompt?: string, promptFormat?: string }> }} */
+/** @type {{ version: number, tags: Record<string, { phrase?: string, blurb?: string, summary?: string, prompt: string, source?: string, translationSystemPrompt?: string, promptFormat?: string }> }} */
 let nfcPersonalityStore = { version: 1, tags: {} };
+
+function lowerNfcLabel(s) {
+  return (typeof s === 'string' ? s.trim() : '').toLowerCase();
+}
 
 function tagPhrase(tag) {
   if (!tag) return '';
-  return (tag.phrase || tag.summary || '').trim();
+  return lowerNfcLabel(tag.phrase || tag.summary || '');
 }
 let nfcCanonicalPreviewTimer;
 let lastScannedNfcUid = '';
@@ -118,7 +122,7 @@ function fillNfcEditorFromUid(uid) {
   const phraseEl = document.getElementById('nfc-edit-phrase');
   if (phraseEl) phraseEl.value = tag ? tagPhrase(tag) : '';
   const blurbEl = document.getElementById('nfc-edit-blurb');
-  if (blurbEl) blurbEl.value = tag?.blurb ? String(tag.blurb).trim() : '';
+  if (blurbEl) blurbEl.value = tag?.blurb ? lowerNfcLabel(String(tag.blurb)) : '';
   document.getElementById('nfc-edit-prompt').value = tag?.prompt || '';
   const fmtEl = document.getElementById('nfc-prompt-format');
   if (fmtEl) fmtEl.value = tag?.promptFormat === 'full' ? 'full' : 'inner';
@@ -162,7 +166,7 @@ function applyNfcUid(uidRaw) {
     setCustomPersonalityPrompt(tag.prompt);
   }
   const p = tagPhrase(tag);
-  const b = (tag.blurb || '').trim();
+  const b = lowerNfcLabel(tag.blurb || '');
   if (badge) badge.textContent = `NFC: ${p}`;
   setDeviceScreenReadout(b ? `${p}\n${b}` : p);
   fillNfcEditorFromUid(hex);
@@ -752,8 +756,8 @@ document.getElementById('btn-nfc-reload')?.addEventListener('click', () => {
 document.getElementById('btn-nfc-save')?.addEventListener('click', () => {
   const uid = readNfcEditorUid();
   const source = (document.getElementById('nfc-edit-source')?.value || '').trim();
-  const phrase = (document.getElementById('nfc-edit-phrase')?.value || '').trim();
-  const blurb = (document.getElementById('nfc-edit-blurb')?.value || '').trim();
+  const phrase = lowerNfcLabel(document.getElementById('nfc-edit-phrase')?.value || '');
+  const blurb = lowerNfcLabel(document.getElementById('nfc-edit-blurb')?.value || '');
   const prompt = (document.getElementById('nfc-edit-prompt')?.value || '').trim();
   if (!uid) {
     setPersonalitiesStatus('Enter a valid hex UID.', true);
@@ -766,7 +770,7 @@ document.getElementById('btn-nfc-save')?.addEventListener('click', () => {
   const fmt = document.getElementById('nfc-prompt-format')?.value === 'full' ? 'full' : 'inner';
   const translationSystemPrompt =
     fmt === 'full' ? prompt : buildTranslationSystemPromptFromPersonality(prompt);
-  const entry = { phrase, summary: phrase, prompt, translationSystemPrompt };
+  const entry = { phrase, prompt, translationSystemPrompt };
   if (blurb) entry.blurb = blurb;
   if (source) entry.source = source;
   if (fmt === 'full') entry.promptFormat = 'full';
@@ -852,6 +856,15 @@ document.getElementById('btn-nfc-synthesize')?.addEventListener('click', async (
     setPersonalitiesStatus('Add source (or filter text) first, then generate.', true);
     return;
   }
+  if (window.location.protocol === 'file:') {
+    setPersonalitiesStatus(
+      'Open the app from the hardware-bridge server (run npm start, then use http://localhost:8787). file:// cannot call /api.',
+      true,
+    );
+    return;
+  }
+  const synthBtn = document.getElementById('btn-nfc-synthesize');
+  if (synthBtn) synthBtn.disabled = true;
   setPersonalitiesStatus('Generating phrase, blurb, and amplified filter…', false);
   try {
     const r = await fetch('/api/nfc-personality-synthesize', {
@@ -859,31 +872,37 @@ document.getElementById('btn-nfc-synthesize')?.addEventListener('click', async (
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ description }),
     });
-    const data = await r.json().catch(() => ({}));
-    if (!r.ok) throw new Error(data.error || r.statusText);
+    const rawText = await r.text();
+    let data = {};
+    try {
+      data = rawText ? JSON.parse(rawText) : {};
+    } catch {
+      throw new Error(r.ok ? 'Server returned non-JSON response.' : `${r.status} ${r.statusText}`);
+    }
+    if (!r.ok) throw new Error(data.error || `${r.status} ${r.statusText}`);
     const phraseEl = document.getElementById('nfc-edit-phrase');
     const blurbEl = document.getElementById('nfc-edit-blurb');
-    const phrase =
-      typeof data.phrase === 'string'
-        ? data.phrase.trim()
-        : typeof data.summary === 'string'
-          ? data.summary.trim()
+    const promptEl = document.getElementById('nfc-edit-prompt');
+    const phraseNorm = lowerNfcLabel(data.phrase != null ? String(data.phrase) : '');
+    if (phraseNorm && phraseEl) phraseEl.value = phraseNorm;
+    const blurbRaw =
+      data.blurb != null
+        ? String(data.blurb)
+        : data.shortLine != null
+          ? String(data.shortLine)
           : '';
-    if (phrase && phraseEl) phraseEl.value = phrase;
-    const blurb =
-      typeof data.blurb === 'string'
-        ? data.blurb.trim()
-        : typeof data.shortLine === 'string'
-          ? data.shortLine.trim()
-          : '';
-    if (blurb && blurbEl) blurbEl.value = blurb;
+    const blurbNorm = lowerNfcLabel(blurbRaw);
+    if (blurbNorm && blurbEl) blurbEl.value = blurbNorm;
     const amp =
       typeof data.amplifiedFilter === 'string'
         ? data.amplifiedFilter.trim()
         : typeof data.prompt === 'string'
           ? data.prompt.trim()
           : '';
-    if (amp) document.getElementById('nfc-edit-prompt').value = amp;
+    if (!amp) {
+      throw new Error('Server response missing amplified filter (phrase/blurb may also be empty).');
+    }
+    if (promptEl) promptEl.value = amp;
     const fmtEl = document.getElementById('nfc-prompt-format');
     if (fmtEl) fmtEl.value = data.promptFormat === 'full' ? 'full' : 'inner';
     refreshNfcCanonicalPreview();
@@ -891,6 +910,8 @@ document.getElementById('btn-nfc-synthesize')?.addEventListener('click', async (
     setPersonalitiesStatus('AI filled phrase, blurb, and filter. Save to server to persist.', false);
   } catch (e) {
     setPersonalitiesStatus(e.message || String(e), true);
+  } finally {
+    if (synthBtn) synthBtn.disabled = false;
   }
 });
 
