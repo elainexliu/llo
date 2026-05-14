@@ -9,28 +9,78 @@
 </head>
 <body>
   <header>
-    <h1>Large Language Object</h1>
-    <span class="sub">single player · sliders + optional NFC</span>
-    <div class="serial-bar">
-      <span id="serial-status">Sliders disconnected</span>
-      <button type="button" id="btn-serial">Connect sliders</button>
-      <span class="serial-gap" aria-hidden="true"></span>
-      <span id="nfc-status">NFC disconnected</span>
-      <button type="button" id="btn-nfc-serial">Connect NFC</button>
+    <div class="header-top">
+      <h1>Large Language Object</h1>
+      <span class="sub">NFC · voice · translate</span>
+      <div class="header-connect">
+        <span id="nfc-status">NFC disconnected</span>
+        <button type="button" id="btn-nfc-serial">Connect NFC</button>
+      </div>
+    </div>
+    <div class="device-bar" aria-label="Device readout">
+      <span class="device-bar-label">Readout</span>
+      <div class="device-screen" id="device-screen">— no tag —</div>
+      <button type="button" id="btn-clear-personality" class="btn-device-clear">Default filter</button>
     </div>
   </header>
 
   <main>
     <section class="panel">
-      <div class="panel-head">Filter levels</div>
-      <div class="knob-panel">
-        <div class="knob-header">Web sliders (0–100). Sliders serial = pots; NFC serial = tag presets — edit web/js/nfc-profiles.js.</div>
-        <div id="knobs"></div>
-      </div>
-      <div class="panel-head" style="border-top:1px solid var(--border)">Memory</div>
-      <div class="knob-panel" style="padding-top:12px">
-        <span id="mem-badge">no memory</span>
-        <button type="button" id="btn-reset" style="margin-top:10px;background:none;border:1px solid var(--border2);border-radius:6px;color:var(--muted);font-family:var(--font-mono);font-size:10px;padding:4px 10px;cursor:pointer;text-transform:uppercase;letter-spacing:0.06em">Reset memory</button>
+      <div class="panel-head">NFC personalities</div>
+      <div class="knob-panel nfc-personalities">
+        <p class="nfc-personalities-hint">Saved as <code>data/nfc-personalities.json</code>. Add a <strong>source</strong> (spoken or typed personality), then <strong>Generate (AI)</strong> for <strong>phrase</strong> (1–2 words), <strong>blurb</strong> (under 10 words), and an <strong>amplified filter</strong> (amped-up mechanical warp). Translate combines the amplified filter with the LLO template + transformation rules (inner mode). Readout shows phrase + blurb.</p>
+        <div class="nfc-row">
+          <label class="nfc-label">Tag UID (hex)</label>
+          <input type="text" id="nfc-edit-uid" class="nfc-input" placeholder="04da3649be2a81" spellcheck="false" autocomplete="off">
+        </div>
+        <div class="nfc-row">
+          <label class="nfc-label">Source — personality description (saved)</label>
+          <textarea id="nfc-edit-source" class="nfc-textarea" rows="3" placeholder="Speak or type how this tag hears the world…"></textarea>
+        </div>
+        <div class="nfc-row">
+          <label class="nfc-label">Phrase (1–2 words — saved)</label>
+          <input type="text" id="nfc-edit-phrase" class="nfc-input" maxlength="80" placeholder="defensive friend" spellcheck="true">
+        </div>
+        <div class="nfc-row">
+          <label class="nfc-label">Blurb (under 10 words — saved)</label>
+          <input type="text" id="nfc-edit-blurb" class="nfc-input" maxlength="200" placeholder="Warm on the surface, scanning for the catch…" spellcheck="true">
+        </div>
+        <div class="nfc-row">
+          <label class="nfc-label">Amplified filter (saved; combined with rules at translate)</label>
+          <textarea id="nfc-edit-prompt" class="nfc-textarea" rows="5" placeholder="Mechanical perceptual warp — amped from your source…"></textarea>
+        </div>
+        <div class="nfc-row">
+          <label class="nfc-label" for="nfc-prompt-format">Prompt format</label>
+          <select id="nfc-prompt-format" class="nfc-select" aria-label="Prompt format">
+            <option value="inner" selected>Inner (LLO wrap + transformation rules)</option>
+            <option value="full">Full system prompt (you supply entire system text)</option>
+          </select>
+        </div>
+        <div class="nfc-actions">
+          <button type="button" id="btn-nfc-synthesize">Generate phrase + blurb + filter (AI)</button>
+        </div>
+        <div class="nfc-row">
+          <label class="nfc-label">Canonical translation system prompt (recomputed on Save)</label>
+          <textarea id="nfc-preview-canonical" class="nfc-textarea nfc-preview" readonly rows="7" spellcheck="false"></textarea>
+        </div>
+        <div class="nfc-row">
+          <label class="nfc-label">Live system prompt for next /api/chat (active filter only)</label>
+          <textarea id="nfc-preview-live" class="nfc-textarea nfc-preview" readonly rows="5" spellcheck="false"></textarea>
+        </div>
+        <div class="nfc-actions">
+          <button type="button" id="btn-nfc-reload">Reload from server</button>
+          <button type="button" id="btn-nfc-save">Save to server</button>
+          <button type="button" id="btn-nfc-delete">Delete tag</button>
+        </div>
+        <div class="nfc-actions nfc-actions-2">
+          <button type="button" id="btn-nfc-record">Record rough source (mic)</button>
+          <span id="nfc-record-hint" class="nfc-record-hint"></span>
+        </div>
+        <div class="nfc-row">
+          <label class="nfc-label" for="nfc-personality-select">Library</label>
+          <select id="nfc-personality-select" class="nfc-select" size="9" aria-label="Saved NFC tags"></select>
+        </div>
+        <p id="nfc-personalities-status" class="nfc-personalities-status" aria-live="polite"></p>
       </div>
     </section>
 
@@ -48,6 +98,7 @@
 
       <div class="actions">
         <button type="button" id="btn-translate">Translate</button>
+        <button type="button" id="btn-clear-text" class="btn-clear-text">Clear text</button>
         <span class="hint-keys">⌃⌘ Enter · Chrome / Edge for mic</span>
       </div>
 

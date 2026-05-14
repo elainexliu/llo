@@ -1,119 +1,175 @@
 import {
-  KNOB_DEFS,
-  knobValues,
-  histories,
   callClaude,
-  pushExchange,
+  setCustomPersonalityPrompt,
+  setCustomFullSystemPrompt,
+  clearCustomPersonalityFilters,
+  buildSystemPrompt,
+  buildTranslationSystemPromptFromPersonality,
 } from './filter-engine.js';
-import { normalizeNfcUidString, NFC_PROFILES } from './nfc-profiles.js';
+import { normalizeNfcUidString } from './nfc-profiles.js';
 
-/** ATmega32U4 Pro Micro: 10-bit ADC (0–1023). ESP32 12-bit builds: use 4095. */
-const ADC_MAX = 1023;
+/** @type {{ version: number, tags: Record<string, { phrase?: string, blurb?: string, summary: string, prompt: string, source?: string, translationSystemPrompt?: string, promptFormat?: string }> }} */
+let nfcPersonalityStore = { version: 1, tags: {} };
+
+function tagPhrase(tag) {
+  if (!tag) return '';
+  return (tag.phrase || tag.summary || '').trim();
+}
+let nfcCanonicalPreviewTimer;
+let lastScannedNfcUid = '';
 
 const SpeechRecognition =
   typeof window !== 'undefined' && (window.SpeechRecognition || window.webkitSpeechRecognition);
 
-const rotaryState = {
-  mode: 'browse',
-  selectedIndex: -1,
-};
-
-function rawToPercent(raw) {
-  const n = Math.round((Number(raw) / ADC_MAX) * 100);
-  return Math.max(0, Math.min(100, n));
+function setDeviceScreenReadout(text) {
+  const el = document.getElementById('device-screen');
+  if (!el) return;
+  const t = (text || '').trim() || '— no tag —';
+  el.textContent = t.length > 200 ? `${t.slice(0, 197)}…` : t;
 }
 
-function renderKnobs() {
-  KNOB_DEFS.forEach((k, idx) => {
-    const pct = knobValues[k.id];
-    const row = document.querySelector(`[data-knob-row="${k.id}"]`);
-    if (!row) return;
-    row.classList.toggle(
-      'rotary-browse-selected',
-      rotaryState.mode === 'browse' && idx === rotaryState.selectedIndex,
-    );
-    row.classList.toggle(
-      'rotary-edit-selected',
-      rotaryState.mode === 'edit' && idx === rotaryState.selectedIndex,
-    );
-    const input = row.querySelector('.knob-slider');
-    if (input) {
-      input.value = String(pct);
-      input.style.setProperty('--pct', `${pct}%`);
-    }
-    const valSpan = row.querySelector('.knob-val');
-    if (valSpan) valSpan.textContent = String(pct);
-  });
+function setPersonalitiesStatus(msg, isError) {
+  const el = document.getElementById('nfc-personalities-status');
+  if (!el) return;
+  el.textContent = msg || '';
+  el.style.color = isError ? '#f0a0a0' : 'var(--muted)';
 }
 
-function buildKnobRows() {
-  const container = document.getElementById('knobs');
-  KNOB_DEFS.forEach((k) => {
-    const v = knobValues[k.id];
-    const wrap = document.createElement('div');
-    wrap.innerHTML = `
-      <div class="knob-row" data-knob-row="${k.id}">
-        <span class="knob-name">${k.label}</span>
-        <input type="range" class="knob-slider" min="0" max="100" value="${v}"
-          style="--pct:${v}%"
-          data-knob="${k.id}">
-        <span class="knob-val">${v}</span>
-      </div>
-      <div class="knob-labels"><span>${k.lo}</span><span>${k.hi}</span></div>
-    `;
-    container.appendChild(wrap);
-    const input = wrap.querySelector('.knob-slider');
-    input.addEventListener('input', function () {
-      const id = this.dataset.knob;
-      const val = parseInt(this.value, 10);
-      knobValues[id] = val;
-      this.style.setProperty('--pct', `${val}%`);
-      this.nextElementSibling.textContent = String(val);
-    });
-  });
-}
-
-function applySerialPayload(obj) {
-  if (typeof obj._mode === 'string') {
-    rotaryState.mode = obj._mode === 'edit' ? 'edit' : 'browse';
+function refreshNfcCanonicalPreview() {
+  const el = document.getElementById('nfc-preview-canonical');
+  if (!el) return;
+  const pr = (document.getElementById('nfc-edit-prompt')?.value || '').trim();
+  const fmt = document.getElementById('nfc-prompt-format')?.value || 'inner';
+  try {
+    el.value = fmt === 'full' && pr ? pr : buildTranslationSystemPromptFromPersonality(pr);
+  } catch {
+    el.value = '';
   }
-  if (Number.isInteger(obj._selected)) {
-    rotaryState.selectedIndex = Math.max(0, Math.min(KNOB_DEFS.length - 1, obj._selected));
-  }
-
-  let changed = false;
-  KNOB_DEFS.forEach((k) => {
-    if (Object.prototype.hasOwnProperty.call(obj, k.id)) {
-      knobValues[k.id] = rawToPercent(obj[k.id]);
-      changed = true;
-    }
-  });
-  if (changed || typeof obj._mode === 'string' || Number.isInteger(obj._selected)) renderKnobs();
 }
 
-/** Apply NFC UID → knob preset from `nfc-profiles.js`. */
+function refreshNfcLiveSystemPreview() {
+  const el = document.getElementById('nfc-preview-live');
+  if (!el) return;
+  try {
+    el.value = buildSystemPrompt();
+  } catch {
+    el.value = '';
+  }
+}
+
+function scheduleNfcCanonicalPreview() {
+  clearTimeout(nfcCanonicalPreviewTimer);
+  nfcCanonicalPreviewTimer = setTimeout(() => {
+    refreshNfcCanonicalPreview();
+  }, 350);
+}
+
+async function loadNfcPersonalitiesFromServer() {
+  const r = await fetch('/api/nfc-personalities');
+  if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || r.statusText);
+  const data = await r.json();
+  if (!data || data.version !== 1 || !data.tags || typeof data.tags !== 'object') {
+    throw new Error('Invalid personalities JSON');
+  }
+  nfcPersonalityStore = { version: 1, tags: { ...data.tags } };
+  populateNfcPersonalitySelect();
+  setPersonalitiesStatus(`Loaded ${Object.keys(nfcPersonalityStore.tags).length} tag(s).`, false);
+  refreshNfcCanonicalPreview();
+  refreshNfcLiveSystemPreview();
+}
+
+async function saveNfcPersonalitiesToServer() {
+  const r = await fetch('/api/nfc-personalities', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(nfcPersonalityStore),
+  });
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(data.error || r.statusText);
+  populateNfcPersonalitySelect();
+  setPersonalitiesStatus('Saved to server.', false);
+}
+
+function populateNfcPersonalitySelect() {
+  const sel = document.getElementById('nfc-personality-select');
+  if (!sel) return;
+  const keys = Object.keys(nfcPersonalityStore.tags).sort();
+  sel.innerHTML = '';
+  const opt0 = document.createElement('option');
+  opt0.value = '';
+  opt0.textContent = keys.length ? '— pick a tag —' : '— no tags in library —';
+  sel.appendChild(opt0);
+  for (const uid of keys) {
+    const o = document.createElement('option');
+    o.value = uid;
+    const t = nfcPersonalityStore.tags[uid];
+    const s = tagPhrase(t) || uid;
+    o.textContent = `${uid.slice(0, 10)}… ${s}`.slice(0, 72);
+    sel.appendChild(o);
+  }
+}
+
+function fillNfcEditorFromUid(uid) {
+  const hex = normalizeNfcUidString(uid);
+  document.getElementById('nfc-edit-uid').value = hex;
+  const tag = hex ? nfcPersonalityStore.tags[hex] : null;
+  const srcEl = document.getElementById('nfc-edit-source');
+  if (srcEl) srcEl.value = tag?.source || '';
+  const phraseEl = document.getElementById('nfc-edit-phrase');
+  if (phraseEl) phraseEl.value = tag ? tagPhrase(tag) : '';
+  const blurbEl = document.getElementById('nfc-edit-blurb');
+  if (blurbEl) blurbEl.value = tag?.blurb ? String(tag.blurb).trim() : '';
+  document.getElementById('nfc-edit-prompt').value = tag?.prompt || '';
+  const fmtEl = document.getElementById('nfc-prompt-format');
+  if (fmtEl) fmtEl.value = tag?.promptFormat === 'full' ? 'full' : 'inner';
+  refreshNfcCanonicalPreview();
+  refreshNfcLiveSystemPreview();
+}
+
+function readNfcEditorUid() {
+  return normalizeNfcUidString(document.getElementById('nfc-edit-uid')?.value || '');
+}
+
+/** Apply NFC UID → natural-language filter from server JSON. */
 function applyNfcUid(uidRaw) {
   const hex = normalizeNfcUidString(uidRaw);
   const badge = document.getElementById('nfc-status');
+  lastScannedNfcUid = hex;
   if (!hex) {
     if (badge) badge.textContent = 'NFC: invalid UID';
+    setDeviceScreenReadout('— invalid UID —');
+    refreshNfcCanonicalPreview();
+    refreshNfcLiveSystemPreview();
     return;
   }
 
-  const profile = NFC_PROFILES[hex];
-  if (!profile) {
-    if (badge) badge.textContent = `NFC: unknown tag (${hex})`;
+  const tag = nfcPersonalityStore.tags[hex];
+  if (!tag) {
+    clearCustomPersonalityFilters();
+    if (badge) badge.textContent = `NFC: unknown (${hex}) — add in panel`;
+    setDeviceScreenReadout(`UNKNOWN\n${hex}`);
+    fillNfcEditorFromUid(hex);
+    const sel = document.getElementById('nfc-personality-select');
+    if (sel) sel.value = '';
+    refreshNfcCanonicalPreview();
+    refreshNfcLiveSystemPreview();
     return;
   }
 
-  KNOB_DEFS.forEach((k) => {
-    if (Object.prototype.hasOwnProperty.call(profile.knobs, k.id)) {
-      const n = Number(profile.knobs[k.id]);
-      knobValues[k.id] = Number.isFinite(n) ? Math.max(0, Math.min(100, Math.round(n))) : knobValues[k.id];
-    }
-  });
-  renderKnobs();
-  if (badge) badge.textContent = `NFC: ${profile.label}`;
+  if (tag.promptFormat === 'full') {
+    setCustomFullSystemPrompt(tag.prompt);
+  } else {
+    setCustomPersonalityPrompt(tag.prompt);
+  }
+  const p = tagPhrase(tag);
+  const b = (tag.blurb || '').trim();
+  if (badge) badge.textContent = `NFC: ${p}`;
+  setDeviceScreenReadout(b ? `${p}\n${b}` : p);
+  fillNfcEditorFromUid(hex);
+  const sel = document.getElementById('nfc-personality-select');
+  if (sel) sel.value = hex;
+  refreshNfcCanonicalPreview();
+  refreshNfcLiveSystemPreview();
 }
 
 function dispatchInboundJson(obj) {
@@ -121,7 +177,6 @@ function dispatchInboundJson(obj) {
   if (typeof obj.nfc_uid === 'string') {
     applyNfcUid(obj.nfc_uid);
   }
-  applySerialPayload(obj);
 }
 
 function parseSerialJsonLines(chunk, bufferRef) {
@@ -139,57 +194,9 @@ function parseSerialJsonLines(chunk, bufferRef) {
   }
 }
 
-// ─── Web Serial (Chrome / Edge, localhost or HTTPS) ─────────────────────────
-let port;
-let readerAbort;
-
+// ─── Web Serial (Chrome / Edge, localhost or HTTPS) — NFC only ───────────────
 let nfcPort;
 let nfcReaderAbort;
-
-async function connectSerial() {
-  if (!('serial' in navigator)) {
-    document.getElementById('serial-status').textContent =
-      'Web Serial not supported — use Chrome or Edge on localhost';
-    return;
-  }
-
-  const btn = document.getElementById('btn-serial');
-  if (port && port.readable) {
-    try {
-      readerAbort?.abort();
-      await port.close();
-    } catch (_) { /* ignore */ }
-    port = undefined;
-    btn.textContent = 'Connect sliders';
-    document.getElementById('serial-status').textContent = 'Sliders disconnected';
-    return;
-  }
-
-  port = await navigator.serial.requestPort();
-  await port.open({ baudRate: 115200 });
-
-  const decoder = new TextDecoderStream();
-  port.readable.pipeTo(decoder.writable);
-  const lineReader = decoder.readable.getReader();
-  readerAbort = new AbortController();
-  const signal = readerAbort.signal;
-
-  btn.textContent = 'Disconnect';
-  document.getElementById('serial-status').textContent = 'Connected';
-
-  const bufferRef = { value: '' };
-  (async function readLoop() {
-    try {
-      while (!signal.aborted) {
-        const { value, done } = await lineReader.read();
-        if (done) break;
-        parseSerialJsonLines(value, bufferRef);
-      }
-    } catch (e) {
-      if (!signal.aborted) console.warn('Serial read:', e);
-    }
-  })();
-}
 
 async function connectNfcSerial() {
   if (!('serial' in navigator)) {
@@ -539,8 +546,7 @@ function enqueueVoiceTranslate(segment) {
     .then(async () => {
       const filtered = await callClaude(msg);
       appendTranslationLine(filtered);
-      pushExchange(msg, filtered);
-      updateMemoryBadge();
+      refreshNfcLiveSystemPreview();
     })
     .catch((e) => {
       appendTranslationLine(`[error] ${e.message}`);
@@ -630,18 +636,6 @@ function initSpeechRecognition() {
 }
 
 // ─── Translate ───────────────────────────────────────────────────────────────
-function updateMemoryBadge() {
-  const badge = document.getElementById('mem-badge');
-  const count = histories.length / 2;
-  if (count === 0) {
-    badge.textContent = 'no memory';
-    badge.classList.remove('active');
-  } else {
-    badge.textContent = `${Math.round(count)} turn${count !== 1 ? 's' : ''} in memory`;
-    badge.classList.add('active');
-  }
-}
-
 async function translate() {
   const input = document.getElementById('received');
   const msg = input.value.trim();
@@ -652,30 +646,32 @@ async function translate() {
   try {
     const filtered = await callClaude(msg);
     appendTranslationLine(filtered);
-    pushExchange(msg, filtered);
-    updateMemoryBadge();
+    refreshNfcLiveSystemPreview();
   } catch (e) {
     appendTranslationLine(`[error] ${e.message}`);
   }
   btn.disabled = false;
 }
 
-function resetMemory() {
+function clearTextPanels() {
   stopListening();
   stopAllSpeech();
   voiceTranslateChain = Promise.resolve();
   lastFinalText = '';
   lastFinalAt = 0;
-  histories.length = 0;
-  updateMemoryBadge();
   document.getElementById('translation').value = '';
   document.getElementById('received').value = '';
+  refreshNfcLiveSystemPreview();
 }
 
 // ─── Init ────────────────────────────────────────────────────────────────────
-buildKnobRows();
-updateMemoryBadge();
 initSpeechRecognition();
+refreshNfcCanonicalPreview();
+refreshNfcLiveSystemPreview();
+
+loadNfcPersonalitiesFromServer().catch((e) => {
+  setPersonalitiesStatus(`Could not load personalities: ${e.message}`, true);
+});
 
 if (!SpeechRecognition) {
   document.getElementById('btn-mic-start').disabled = true;
@@ -719,12 +715,6 @@ document.getElementById('btn-mic-stop').addEventListener('click', () => {
   stopListening();
 });
 
-document.getElementById('btn-serial').addEventListener('click', () => {
-  connectSerial().catch((e) => {
-    document.getElementById('serial-status').textContent = e.message || String(e);
-  });
-});
-
 document.getElementById('btn-nfc-serial').addEventListener('click', () => {
   connectNfcSerial().catch((e) => {
     document.getElementById('nfc-status').textContent = e.message || String(e);
@@ -732,7 +722,185 @@ document.getElementById('btn-nfc-serial').addEventListener('click', () => {
 });
 
 document.getElementById('btn-translate').addEventListener('click', translate);
-document.getElementById('btn-reset').addEventListener('click', resetMemory);
+document.getElementById('btn-clear-text')?.addEventListener('click', clearTextPanels);
+
+document.getElementById('btn-clear-personality')?.addEventListener('click', () => {
+  clearCustomPersonalityFilters();
+  const badge = document.getElementById('nfc-status');
+  if (badge) {
+    badge.textContent =
+      nfcPort && nfcPort.readable
+        ? 'NFC connected — using default filter; tap a tag'
+        : 'NFC: default filter (no tag)';
+  }
+  setDeviceScreenReadout('— default filter —');
+  refreshNfcCanonicalPreview();
+  refreshNfcLiveSystemPreview();
+});
+
+document.getElementById('nfc-personality-select')?.addEventListener('change', (e) => {
+  const uid = e.target.value;
+  if (uid) fillNfcEditorFromUid(uid);
+});
+
+document.getElementById('btn-nfc-reload')?.addEventListener('click', () => {
+  loadNfcPersonalitiesFromServer().catch((err) => {
+    setPersonalitiesStatus(err.message || String(err), true);
+  });
+});
+
+document.getElementById('btn-nfc-save')?.addEventListener('click', () => {
+  const uid = readNfcEditorUid();
+  const source = (document.getElementById('nfc-edit-source')?.value || '').trim();
+  const phrase = (document.getElementById('nfc-edit-phrase')?.value || '').trim();
+  const blurb = (document.getElementById('nfc-edit-blurb')?.value || '').trim();
+  const prompt = (document.getElementById('nfc-edit-prompt')?.value || '').trim();
+  if (!uid) {
+    setPersonalitiesStatus('Enter a valid hex UID.', true);
+    return;
+  }
+  if (!phrase || !prompt) {
+    setPersonalitiesStatus('Phrase and amplified filter are required.', true);
+    return;
+  }
+  const fmt = document.getElementById('nfc-prompt-format')?.value === 'full' ? 'full' : 'inner';
+  const translationSystemPrompt =
+    fmt === 'full' ? prompt : buildTranslationSystemPromptFromPersonality(prompt);
+  const entry = { phrase, summary: phrase, prompt, translationSystemPrompt };
+  if (blurb) entry.blurb = blurb;
+  if (source) entry.source = source;
+  if (fmt === 'full') entry.promptFormat = 'full';
+  nfcPersonalityStore.tags[uid] = entry;
+  saveNfcPersonalitiesToServer()
+    .then(() => {
+      if (uid === lastScannedNfcUid) applyNfcUid(uid);
+      refreshNfcCanonicalPreview();
+      refreshNfcLiveSystemPreview();
+    })
+    .catch((err) => setPersonalitiesStatus(err.message || String(err), true));
+});
+
+document.getElementById('btn-nfc-delete')?.addEventListener('click', () => {
+  const uid = readNfcEditorUid();
+  if (!uid) {
+    setPersonalitiesStatus('Nothing to delete — enter a UID or pick from library.', true);
+    return;
+  }
+  if (!nfcPersonalityStore.tags[uid]) {
+    setPersonalitiesStatus('That UID is not in the library.', true);
+    return;
+  }
+  if (!window.confirm(`Delete tag ${uid} from the library?`)) return;
+  delete nfcPersonalityStore.tags[uid];
+  saveNfcPersonalitiesToServer()
+    .then(() => {
+      fillNfcEditorFromUid('');
+      if (uid === lastScannedNfcUid) {
+        clearCustomPersonalityFilters();
+        setDeviceScreenReadout('— tag removed —');
+        document.getElementById('nfc-status').textContent = `NFC: removed ${uid.slice(0, 8)}…`;
+      }
+      refreshNfcCanonicalPreview();
+      refreshNfcLiveSystemPreview();
+    })
+    .catch((err) => setPersonalitiesStatus(err.message || String(err), true));
+});
+
+function recordPersonalityDescription() {
+  if (!SpeechRecognition) {
+    setPersonalitiesStatus('Speech recognition unavailable in this browser.', true);
+    return;
+  }
+  if (listeningDesired) {
+    setPersonalitiesStatus('Stop “Start listening” first, then record here.', true);
+    return;
+  }
+  const hint = document.getElementById('nfc-record-hint');
+  if (hint) hint.textContent = 'Listening…';
+  const rec = new SpeechRecognition();
+  rec.continuous = false;
+  rec.interimResults = false;
+  rec.lang = 'en-US';
+  rec.onresult = (event) => {
+    const t = event.results[0][0].transcript.trim();
+    const ta = document.getElementById('nfc-edit-source');
+    if (t && ta) ta.value = ta.value.trim() ? `${ta.value.trim()} ${t}` : t;
+  };
+  rec.onerror = () => {
+    if (hint) hint.textContent = '';
+  };
+  rec.onend = () => {
+    if (hint) hint.textContent = '';
+  };
+  try {
+    rec.start();
+  } catch (err) {
+    if (hint) hint.textContent = '';
+    setPersonalitiesStatus(err.message || String(err), true);
+  }
+}
+
+document.getElementById('btn-nfc-record')?.addEventListener('click', () => {
+  recordPersonalityDescription();
+});
+
+document.getElementById('btn-nfc-synthesize')?.addEventListener('click', async () => {
+  const src = (document.getElementById('nfc-edit-source')?.value || '').trim();
+  const pr = (document.getElementById('nfc-edit-prompt')?.value || '').trim();
+  const description = src || pr;
+  if (!description) {
+    setPersonalitiesStatus('Add source (or filter text) first, then generate.', true);
+    return;
+  }
+  setPersonalitiesStatus('Generating phrase, blurb, and amplified filter…', false);
+  try {
+    const r = await fetch('/api/nfc-personality-synthesize', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ description }),
+    });
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(data.error || r.statusText);
+    const phraseEl = document.getElementById('nfc-edit-phrase');
+    const blurbEl = document.getElementById('nfc-edit-blurb');
+    const phrase =
+      typeof data.phrase === 'string'
+        ? data.phrase.trim()
+        : typeof data.summary === 'string'
+          ? data.summary.trim()
+          : '';
+    if (phrase && phraseEl) phraseEl.value = phrase;
+    const blurb =
+      typeof data.blurb === 'string'
+        ? data.blurb.trim()
+        : typeof data.shortLine === 'string'
+          ? data.shortLine.trim()
+          : '';
+    if (blurb && blurbEl) blurbEl.value = blurb;
+    const amp =
+      typeof data.amplifiedFilter === 'string'
+        ? data.amplifiedFilter.trim()
+        : typeof data.prompt === 'string'
+          ? data.prompt.trim()
+          : '';
+    if (amp) document.getElementById('nfc-edit-prompt').value = amp;
+    const fmtEl = document.getElementById('nfc-prompt-format');
+    if (fmtEl) fmtEl.value = data.promptFormat === 'full' ? 'full' : 'inner';
+    refreshNfcCanonicalPreview();
+    refreshNfcLiveSystemPreview();
+    setPersonalitiesStatus('AI filled phrase, blurb, and filter. Save to server to persist.', false);
+  } catch (e) {
+    setPersonalitiesStatus(e.message || String(e), true);
+  }
+});
+
+document.getElementById('nfc-edit-prompt')?.addEventListener('input', () => {
+  scheduleNfcCanonicalPreview();
+});
+
+document.getElementById('nfc-prompt-format')?.addEventListener('change', () => {
+  refreshNfcCanonicalPreview();
+});
 
 document.getElementById('received').addEventListener('keydown', (e) => {
   if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
