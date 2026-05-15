@@ -1,0 +1,12 @@
+{
+  "04da3649be2a81": {
+    "name": "malevolent",
+    "desc": "a bitter enemy twisting every word into an attack",
+    "prompt": "I want this filter to be someone who's always just wishing the worst for me, just the worst interpretations of what people have to say, projecting myself to the maximum, and just generally having a really negative outlook on life."
+  },
+  "04dd3649be2a81": {
+    "name": "amplified",
+    "desc": "a best friend who sees the brightest meaning in everything",
+    "prompt": "filter to be a best friend who always magnifies whatever is being said and really reads into what's going on and tells me the most optimistic version of what's being said."
+  }
+}
