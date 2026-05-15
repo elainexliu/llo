@@ -265,6 +265,8 @@ import { tmpdir } from 'os';
 // import FormData from 'form-data';
 import OpenAI from 'openai';
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+import player from 'play-sound';
+const audioPlayer = player({});
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -469,6 +471,75 @@ Input to filter: ${transcript}`;
   return msg.content?.[0]?.text?.trim() || transcript;
 }
 
+
+/////////////////////////// SPEAKER //////////////////////////////////////
+
+// ─── Audio playback buffer ────────────────────────────────────────────────────
+let latestAudioBuffer = null;
+let latestAudioId = 0;
+let latestFilteredText = '';
+
+app.get('/api/audio/latest', (req, res) => {
+  const sinceId = parseInt(req.query.since) || 0;
+  if (!latestAudioBuffer || latestAudioId <= sinceId) {
+    res.status(204).end();  // no new audio
+    return;
+  }
+  res.setHeader('Content-Type', 'audio/mpeg');
+  res.setHeader('X-Audio-Id', latestAudioId);
+  res.setHeader('Cache-Control', 'no-store');
+  res.send(latestAudioBuffer);
+});
+
+
+async function speakText(text) {
+  const key = process.env.ELEVENLABS_API_KEY;
+  const voiceId = process.env.ELEVENLABS_VOICE_ID;
+  if (!key || !voiceId) {
+    console.error('ElevenLabs key or voice ID not set');
+    return;
+  }
+
+  const url = new URL(`https://api.elevenlabs.io/v1/text-to-speech/${encodeURIComponent(voiceId)}`);
+  url.searchParams.set('output_format', 'mp3_44100_128');
+
+  const r = await fetch(url.toString(), {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'xi-api-key': key,
+      Accept: 'audio/mpeg',
+    },
+    body: JSON.stringify({
+      text,
+      model_id: process.env.ELEVENLABS_MODEL_ID || 'eleven_multilingual_v2',
+    }),
+  });
+
+  if (!r.ok) {
+    console.error('ElevenLabs error:', r.status, await r.text());
+    return;
+  }
+
+  latestAudioBuffer = Buffer.from(await r.arrayBuffer());
+  latestAudioId++;
+  latestFilteredText = text;
+  console.log('Speaking:', text);
+}
+
+app.get('/api/audio/latest', (req, res) => {
+  const sinceId = parseInt(req.query.since) || 0;
+  if (!latestAudioBuffer || latestAudioId <= sinceId) {
+    res.status(204).end();
+    return;
+  }
+  res.setHeader('Content-Type', 'audio/mpeg');
+  res.setHeader('X-Audio-Id', latestAudioId);
+  res.setHeader('X-Filtered-Text', encodeURIComponent(latestFilteredText || ''));
+  res.setHeader('Cache-Control', 'no-store');
+  res.send(latestAudioBuffer);
+});
+
 // ─────────────────────────────────────────────────────────────────────────────
 // SERIAL STATE MACHINE
 // ─────────────────────────────────────────────────────────────────────────────
@@ -499,6 +570,7 @@ function initSerial() {
   async function handleLine(line) {
     line = line.trim();
     if (!line) return;
+    if (!/^[\x20-\x7E]+$/.test(line)) return;
     console.log('← ESP32:', line);
 
     // ── NFC uid lookup ──────────────────────────────────────────────────────
@@ -556,6 +628,7 @@ function initSerial() {
           conversationHistory.push({ role: 'assistant', content: filtered });
           if (conversationHistory.length > 16) conversationHistory.splice(0, 2);
           serial.write(filtered + '\n');
+          await speakText(filtered);
         }
       } catch (e) {
         console.error('Listening pipeline error:', e.message);
@@ -647,7 +720,14 @@ function initSerial() {
       textBuf += chunk.toString('utf8');
       const lines = textBuf.split('\n');
       textBuf = lines.pop() || '';
-      lines.forEach(l => handleLine(l));
+      // lines.forEach(l => handleLine(l));
+      lines.forEach(l => { 
+        const trimmed = l.trim();
+        // only process lines that look like valid text/JSON — skip binary garbage
+        if (trimmed && /^[\x20-\x7E\{\}\":,\[\]]+/.test(trimmed)) {
+          handleLine(trimmed);
+        }
+      });
     }
   });
 

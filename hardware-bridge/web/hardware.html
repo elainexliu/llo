@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>en clair — live</title>
+  <style>
+    body {
+      background: #000;
+      color: #fff;
+      font-family: 'DM Mono', monospace;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      margin: 0;
+      gap: 16px;
+    }
+    #status {
+      font-size: 12px;
+      opacity: 0.4;
+      letter-spacing: 0.1em;
+    }
+    #label {
+      font-size: 11px;
+      opacity: 0.3;
+      text-transform: uppercase;
+      letter-spacing: 0.15em;
+    }
+    #filtered {
+      font-size: 18px;
+      max-width: 600px;
+      text-align: center;
+      line-height: 1.6;
+      opacity: 0.9;
+      min-height: 2em;
+    }
+    #indicator {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #333;
+      transition: background 0.2s;
+    }
+    #indicator.active {
+      background: #fff;
+    }
+  </style>
+</head>
+<body>
+  <div id="status">en clair — audio output</div>
+  <div id="indicator"></div>
+  <div id="label">last translation</div>
+  <div id="filtered">—</div>
+  <script>
+    let lastAudioId = 0;
+    const indicator = document.getElementById('indicator');
+    const filteredEl = document.getElementById('filtered');
+
+    async function pollAudio() {
+      try {
+        const r = await fetch(`/api/audio/latest?since=${lastAudioId}`);
+        if (r.status === 200) {
+          const id = parseInt(r.headers.get('X-Audio-Id'));
+          const text = r.headers.get('X-Filtered-Text');
+          lastAudioId = id;
+
+          if (text) filteredEl.textContent = decodeURIComponent(text);
+
+          const buf = await r.arrayBuffer();
+          const ctx = new AudioContext();
+          const decoded = await ctx.decodeAudioData(buf);
+          const source = ctx.createBufferSource();
+          source.buffer = decoded;
+          source.connect(ctx.destination);
+
+          indicator.classList.add('active');
+          source.start();
+          source.onended = () => indicator.classList.remove('active');
+        }
+      } catch (e) {
+        console.error('Audio poll error:', e);
+      }
+      setTimeout(pollAudio, 500);
+    }
+
+    pollAudio();
+  </script>
+</body>
+</html>
