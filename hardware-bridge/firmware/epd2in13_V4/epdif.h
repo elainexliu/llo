@@ -31,11 +31,11 @@
 #include <Arduino.h>
 
 // Pin definition
-#define RST_PIN         8
-#define DC_PIN          9
-#define CS_PIN          10
-#define BUSY_PIN        7
-#define PWR_PIN         6
+#define RST_PIN         13
+#define DC_PIN          12
+#define CS_PIN          9
+#define BUSY_PIN        14
+#define PWR_PIN         -1
 
 class EpdIf {
 public:
